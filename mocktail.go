@@ -216,6 +216,13 @@ func getTypeImports(t types.Type) []string {
 	case *types.Array:
 		return getTypeImports(v.Elem())
 
+	case *types.Struct:
+		var imports []string
+		for i := range v.NumFields() {
+			imports = append(imports, getTypeImports(v.Field(i).Type())...)
+		}
+		return imports
+
 	case *types.Map:
 		imports := getTypeImports(v.Key())
 		imports = append(imports, getTypeImports(v.Elem())...)

@@ -35,11 +35,13 @@ func TestName(t *testing.T) {
 		OnLoo("a", 1, 2).TypedReturns("foo").Once().
 		OnMoo(fn).TypedReturns("").Once().
 		OnNoo([][2]string{{"a", "b"}}).TypedReturns("").
+		OnPoo(struct{ name string }{name: "poo"}).TypedReturns("").Once().
 		Parent
 
 	c.Loo("a", 1, 2)
 	c.Moo(fn)
 	c.Noo([][2]string{{"a", "b"}})
+	c.Poo(struct{ name string }{name: "poo"})
 
 	juiceCh := make(chan struct{}, 1)
 	juiceCh <- struct{}{}

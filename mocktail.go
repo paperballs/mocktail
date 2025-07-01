@@ -38,8 +38,9 @@ type PackageDesc struct {
 
 // InterfaceDesc represent an interface.
 type InterfaceDesc struct {
-	Name    string
-	Methods []*types.Func
+	Name       string
+	Methods    []*types.Func
+	TypeParams *types.TypeParamList // Generic type parameters
 }
 
 func main() {
@@ -156,6 +157,11 @@ func walk(root, moduleName string) (map[string]PackageDesc, error) {
 
 			interfaceDesc := InterfaceDesc{Name: interfaceName}
 
+			// Check if this is a generic interface
+			if namedType, ok := lookup.Type().(*types.Named); ok {
+				interfaceDesc.TypeParams = namedType.TypeParams()
+			}
+
 			interfaceType, ok := lookup.Type().Underlying().(*types.Interface)
 			if !ok {
 				return fmt.Errorf("type %q in %q is not an interface", lookup.Type(), fp)
@@ -255,6 +261,9 @@ func getTypeImports(t types.Type) []string {
 	case *types.Chan:
 		return []string{""}
 
+	case *types.TypeParam:
+		return []string{""}
+
 	default:
 		panic(fmt.Sprintf("OOPS %[1]T %[1]s", t))
 	}
@@ -270,7 +279,7 @@ func generate(model map[string]PackageDesc, exported bool) error {
 		}
 
 		for _, interfaceDesc := range pkgDesc.Interfaces {
-			err = writeMockBase(buffer, interfaceDesc.Name, exported)
+			err = writeMockBase(buffer, interfaceDesc, exported)
 			if err != nil {
 				return err
 			}
@@ -285,6 +294,7 @@ func generate(model map[string]PackageDesc, exported bool) error {
 					InterfaceName: interfaceDesc.Name,
 					Method:        method,
 					Signature:     signature,
+					TypeParams:    interfaceDesc.TypeParams,
 				}
 
 				err = syrup.MockMethod(buffer)

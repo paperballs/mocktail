@@ -43,3 +43,9 @@ type Strawberry interface {
 type Orange interface {
 	Juice() <-chan struct{}
 }
+
+type Banana[T, U any] interface {
+	Tree(T)
+	Flower() U
+	Pudding()
+}

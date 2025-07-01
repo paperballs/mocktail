@@ -25,13 +25,13 @@ package {{ .Name }}
 
 	templateMockBase = `
 // {{ .InterfaceName | ToGoCamel }}Mock mock of {{ .InterfaceName }}.
-type {{ .InterfaceName | ToGoCamel }}Mock struct { mock.Mock }
+type {{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsDecl }} struct { mock.Mock }
 
 // {{.ConstructorPrefix}}{{ .InterfaceName | ToGoPascal }}Mock creates a new {{ .InterfaceName | ToGoCamel }}Mock.
-func {{.ConstructorPrefix}}{{ .InterfaceName | ToGoPascal }}Mock(tb testing.TB) *{{ .InterfaceName | ToGoCamel }}Mock {
+func {{.ConstructorPrefix}}{{ .InterfaceName | ToGoPascal }}Mock{{ .TypeParamsDecl }}(tb testing.TB) *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }} {
 	tb.Helper()
 
-	m := &{{ .InterfaceName | ToGoCamel }}Mock{}
+	m := &{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}{}
 	m.Mock.Test(tb)
 
 	tb.Cleanup(func() { m.AssertExpectations(tb) })
@@ -41,48 +41,48 @@ func {{.ConstructorPrefix}}{{ .InterfaceName | ToGoPascal }}Mock(tb testing.TB) 
 `
 
 	templateCallBase = `
-type {{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call struct{
+type {{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsDecl }} struct{
 	*mock.Call
-	Parent *{{ .InterfaceName | ToGoCamel }}Mock
+	Parent *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}
 }
 
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) Panic(msg string) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) Panic(msg string) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Panic(msg)
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) Once() *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) Once() *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Once()
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) Twice() *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) Twice() *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Twice()
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) Times(i int) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) Times(i int) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Times(i)
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) WaitUntil(w <-chan time.Time) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) WaitUntil(w <-chan time.Time) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.WaitUntil(w)
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) After(d time.Duration) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) After(d time.Duration) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.After(d)
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) Run(fn func(args mock.Arguments)) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) Run(fn func(args mock.Arguments)) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Run(fn)
 	return _c
 }
 
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call) Maybe() *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) Maybe() *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Maybe()
 	return _c
 }
@@ -96,6 +96,21 @@ type Syrup struct {
 	InterfaceName string
 	Method        *types.Func
 	Signature     *types.Signature
+	TypeParams    *types.TypeParamList
+}
+
+// getTypeParamsUse returns type parameters for usage in method receivers.
+func (s Syrup) getTypeParamsUse() string {
+	if s.TypeParams == nil || s.TypeParams.Len() == 0 {
+		return ""
+	}
+
+	var names []string
+	for i := range s.TypeParams.Len() {
+		tp := s.TypeParams.At(i)
+		names = append(names, tp.Obj().Name())
+	}
+	return "[" + strings.Join(names, ", ") + "]"
 }
 
 // Call generates mock.Call wrapper.
@@ -146,7 +161,8 @@ func (s Syrup) MockMethod(writer io.Writer) error {
 func (s Syrup) mockedMethod(writer io.Writer) error {
 	w := &Writer{writer: writer}
 
-	w.Printf("func (_m *%sMock) %s(", strcase.ToGoCamel(s.InterfaceName), s.Method.Name())
+	typeParamsUse := s.getTypeParamsUse()
+	w.Printf("func (_m *%sMock%s) %s(", strcase.ToGoCamel(s.InterfaceName), typeParamsUse, s.Method.Name())
 
 	params := s.Signature.Params()
 
@@ -255,7 +271,8 @@ func (s Syrup) methodOn(writer io.Writer) error {
 
 	structBaseName := strcase.ToGoCamel(s.InterfaceName)
 
-	w.Printf("func (_m *%sMock) On%s(", structBaseName, s.Method.Name())
+	typeParamsUse := s.getTypeParamsUse()
+	w.Printf("func (_m *%sMock%s) On%s(", structBaseName, typeParamsUse, s.Method.Name())
 
 	params := s.Signature.Params()
 
@@ -284,10 +301,10 @@ func (s Syrup) methodOn(writer io.Writer) error {
 		}
 	}
 
-	w.Printf(") *%s%sCall {\n", structBaseName, s.Method.Name())
+	w.Printf(") *%s%sCall%s {\n", structBaseName, s.Method.Name(), typeParamsUse)
 
-	w.Printf(`	return &%s%sCall{Call: _m.Mock.On("%s", %s), Parent: _m}`,
-		structBaseName, s.Method.Name(), s.Method.Name(), strings.Join(argNames, ", "))
+	w.Printf(`	return &%s%sCall%s{Call: _m.Mock.On("%s", %s), Parent: _m}`,
+		structBaseName, s.Method.Name(), typeParamsUse, s.Method.Name(), strings.Join(argNames, ", "))
 
 	w.Println()
 	w.Println("}")
@@ -301,7 +318,8 @@ func (s Syrup) methodOnRaw(writer io.Writer) error {
 
 	structBaseName := strcase.ToGoCamel(s.InterfaceName)
 
-	w.Printf("func (_m *%sMock) On%sRaw(", structBaseName, s.Method.Name())
+	typeParamsUse := s.getTypeParamsUse()
+	w.Printf("func (_m *%sMock%s) On%sRaw(", structBaseName, typeParamsUse, s.Method.Name())
 
 	params := s.Signature.Params()
 
@@ -330,10 +348,10 @@ func (s Syrup) methodOnRaw(writer io.Writer) error {
 		}
 	}
 
-	w.Printf(") *%s%sCall {\n", structBaseName, s.Method.Name())
+	w.Printf(") *%s%sCall%s {\n", structBaseName, s.Method.Name(), typeParamsUse)
 
-	w.Printf(`	return &%s%sCall{Call: _m.Mock.On("%s", %s), Parent: _m}`,
-		structBaseName, s.Method.Name(), s.Method.Name(), strings.Join(argNames, ", "))
+	w.Printf(`	return &%s%sCall%s{Call: _m.Mock.On("%s", %s), Parent: _m}`,
+		structBaseName, s.Method.Name(), typeParamsUse, s.Method.Name(), strings.Join(argNames, ", "))
 
 	w.Println()
 	w.Println("}")
@@ -353,9 +371,26 @@ func (s Syrup) callBase(writer io.Writer) error {
 		return err
 	}
 
+	// Generate type parameter declarations and usage
+	typeParamsDecl := ""
+	typeParamsUse := ""
+	if s.TypeParams != nil && s.TypeParams.Len() > 0 {
+		var params []string
+		var names []string
+		for i := range s.TypeParams.Len() {
+			tp := s.TypeParams.At(i)
+			params = append(params, tp.Obj().Name()+" "+tp.Constraint().String())
+			names = append(names, tp.Obj().Name())
+		}
+		typeParamsDecl = "[" + strings.Join(params, ", ") + "]"
+		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
+	}
+
 	data := map[string]string{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
+		"InterfaceName":  s.InterfaceName,
+		"MethodName":     s.Method.Name(),
+		"TypeParamsDecl": typeParamsDecl,
+		"TypeParamsUse":  typeParamsUse,
 	}
 
 	return tmpl.Execute(writer, data)
@@ -371,7 +406,8 @@ func (s Syrup) typedReturns(writer io.Writer) error {
 
 	structBaseName := strcase.ToGoCamel(s.InterfaceName)
 
-	w.Printf("func (_c *%s%sCall) TypedReturns(", structBaseName, s.Method.Name())
+	typeParamsUse := s.getTypeParamsUse()
+	w.Printf("func (_c *%s%sCall%s) TypedReturns(", structBaseName, s.Method.Name(), typeParamsUse)
 
 	var returnNames string
 	for i := range results.Len() {
@@ -386,7 +422,7 @@ func (s Syrup) typedReturns(writer io.Writer) error {
 		}
 	}
 
-	w.Printf(") *%s%sCall {\n", structBaseName, s.Method.Name())
+	w.Printf(") *%s%sCall%s {\n", structBaseName, s.Method.Name(), typeParamsUse)
 	w.Printf("\t_c.Call = _c.Return(%s)\n", returnNames)
 	w.Println("\treturn _c")
 	w.Println("}")
@@ -402,8 +438,8 @@ func (s Syrup) typedRun(writer io.Writer) error {
 
 	structBaseName := strcase.ToGoCamel(s.InterfaceName)
 
-	w.Printf("func (_c *%[1]s%[2]sCall) TypedRun(fn %[3]s) *%[1]s%[2]sCall {\n",
-		structBaseName, s.Method.Name(), s.createFuncSignature(params, nil))
+	w.Printf("func (_c *%[1]s%[2]sCall%[4]s) TypedRun(fn %[3]s) *%[1]s%[2]sCall%[4]s {\n",
+		structBaseName, s.Method.Name(), s.createFuncSignature(params, nil), s.getTypeParamsUse())
 	w.Println("\t_c.Call = _c.Call.Run(func(args mock.Arguments) {")
 
 	var pos int
@@ -456,8 +492,8 @@ func (s Syrup) returnsFn(writer io.Writer) error {
 
 	structBaseName := strcase.ToGoCamel(s.InterfaceName)
 
-	w.Printf("func (_c *%[1]s%[2]sCall) ReturnsFn(fn %[3]s) *%[1]s%[2]sCall {\n",
-		structBaseName, s.Method.Name(), s.createFuncSignature(params, results))
+	w.Printf("func (_c *%[1]s%[2]sCall%[4]s) ReturnsFn(fn %[3]s) *%[1]s%[2]sCall%[4]s {\n",
+		structBaseName, s.Method.Name(), s.createFuncSignature(params, results), s.getTypeParamsUse())
 	w.Println("\t_c.Call = _c.Return(fn)")
 	w.Println("\treturn _c")
 	w.Println("}")
@@ -469,7 +505,8 @@ func (s Syrup) returnsFn(writer io.Writer) error {
 func (s Syrup) callMethodsOn(writer io.Writer, methods []*types.Func) error {
 	w := &Writer{writer: writer}
 
-	callType := fmt.Sprintf("%s%sCall", strcase.ToGoCamel(s.InterfaceName), s.Method.Name())
+	typeParamsUse := s.getTypeParamsUse()
+	callType := fmt.Sprintf("%s%sCall%s", strcase.ToGoCamel(s.InterfaceName), s.Method.Name(), typeParamsUse)
 
 	for _, method := range methods {
 		sign := method.Type().(*types.Signature)
@@ -498,7 +535,7 @@ func (s Syrup) callMethodsOn(writer io.Writer, methods []*types.Func) error {
 			}
 		}
 
-		w.Printf(") *%s%sCall {\n", strcase.ToGoCamel(s.InterfaceName), method.Name())
+		w.Printf(") *%s%sCall%s {\n", strcase.ToGoCamel(s.InterfaceName), method.Name(), typeParamsUse)
 
 		w.Printf("\treturn _c.Parent.On%s(%s", method.Name(), strings.Join(argNames, ", "))
 		if sign.Variadic() {
@@ -515,7 +552,8 @@ func (s Syrup) callMethodsOn(writer io.Writer, methods []*types.Func) error {
 func (s Syrup) callMethodOnRaw(writer io.Writer, methods []*types.Func) error {
 	w := &Writer{writer: writer}
 
-	callType := fmt.Sprintf("%s%sCall", strcase.ToGoCamel(s.InterfaceName), s.Method.Name())
+	typeParamsUse := s.getTypeParamsUse()
+	callType := fmt.Sprintf("%s%sCall%s", strcase.ToGoCamel(s.InterfaceName), s.Method.Name(), typeParamsUse)
 
 	for _, method := range methods {
 		sign := method.Type().(*types.Signature)
@@ -544,7 +582,7 @@ func (s Syrup) callMethodOnRaw(writer io.Writer, methods []*types.Func) error {
 			}
 		}
 
-		w.Printf(") *%s%sCall {\n", strcase.ToGoCamel(s.InterfaceName), method.Name())
+		w.Printf(") *%s%sCall%s {\n", strcase.ToGoCamel(s.InterfaceName), method.Name(), typeParamsUse)
 
 		w.Printf("\treturn _c.Parent.On%sRaw(%s)\n", method.Name(), strings.Join(argNames, ", "))
 		w.Println("}")
@@ -595,6 +633,9 @@ func (s Syrup) getTypeName(t types.Type, last bool) string {
 
 	case *types.Array:
 		return fmt.Sprintf("[%d]%s", v.Len(), s.getTypeName(v.Elem(), false))
+
+	case *types.TypeParam:
+		return v.Obj().Name()
 
 	default:
 		panic(fmt.Sprintf("OOPS %[1]T %[1]s", t))
@@ -689,7 +730,7 @@ func writeImports(writer io.Writer, descPkg PackageDesc) error {
 	return tmpl.Execute(writer, data)
 }
 
-func writeMockBase(writer io.Writer, interfaceName string, exported bool) error {
+func writeMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool) error {
 	base := template.New("templateMockBase").Funcs(template.FuncMap{
 		"ToGoCamel":  strcase.ToGoCamel,
 		"ToGoPascal": strcase.ToGoPascal,
@@ -700,12 +741,33 @@ func writeMockBase(writer io.Writer, interfaceName string, exported bool) error 
 		constructorPrefix = "New"
 	}
 
+	// Generate type parameter declarations and usage
+	typeParamsDecl := ""
+	typeParamsUse := ""
+	if interfaceDesc.TypeParams != nil && interfaceDesc.TypeParams.Len() > 0 {
+		var params []string
+		var names []string
+		for i := range interfaceDesc.TypeParams.Len() {
+			tp := interfaceDesc.TypeParams.At(i)
+			params = append(params, tp.Obj().Name()+" "+tp.Constraint().String())
+			names = append(names, tp.Obj().Name())
+		}
+		typeParamsDecl = "[" + strings.Join(params, ", ") + "]"
+		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
+	}
+
 	tmpl, err := base.Parse(templateMockBase)
 	if err != nil {
 		return err
 	}
 
-	return tmpl.Execute(writer, map[string]interface{}{"InterfaceName": interfaceName, "ConstructorPrefix": constructorPrefix})
+	data := map[string]interface{}{
+		"InterfaceName":     interfaceDesc.Name,
+		"ConstructorPrefix": constructorPrefix,
+		"TypeParamsDecl":    typeParamsDecl,
+		"TypeParamsUse":     typeParamsUse,
+	}
+	return tmpl.Execute(writer, data)
 }
 
 func quickGoImports(descPkg PackageDesc) []string {

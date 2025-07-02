@@ -98,12 +98,5 @@ formatters:
     gofumpt:
       extra-rules: true
 
-    golines:
-      max-len: 200
-      tab-len: 4
-      shorten-comments: true
-      reformat-tags: false
-      chain-split-dots: false
-
 output:
   show-stats: true

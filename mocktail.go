@@ -99,7 +99,8 @@ func processSingleFile(sourceFile, root, moduleName, interfaceFilter string) (ma
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
+	_, err := os.Stat(sourceFile)
+	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("source file does not exist: %s", sourceFile)
 	}
 

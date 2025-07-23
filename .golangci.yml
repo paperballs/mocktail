@@ -84,10 +84,6 @@ linters:
       - text: fmt.Sprintf can be replaced with string
         linters:
           - perfsprint
-      - path: mocktail.go
-        linters:
-          - gocyclo
-        text: "cyclomatic complexity 16 of func `processSingleFile` is high" # The complexity is expected.
 
 issues:
   max-issues-per-linter: 0

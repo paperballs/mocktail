@@ -176,7 +176,7 @@ func TestMocktail_source(t *testing.T) {
 			args = append(args, "-source="+absInterfacesFile)
 
 			// Run mocktail with source parameter
-			output, err := exec.Command("go", args...).CombinedOutput()
+			output, err := exec.CommandContext(t.Context(), "go", args...).CombinedOutput()
 			t.Log(string(output))
 			require.NoError(t, err)
 
@@ -196,7 +196,7 @@ func TestMocktail_source(t *testing.T) {
 
 			assert.Equal(t, string(goldenBytes), string(genBytes))
 
-			cmd := exec.Command("go", "test", "-v", "./...")
+			cmd := exec.CommandContext(t.Context(), "go", "test", "-v", "./...")
 			cmd.Dir = testDir
 
 			output, err = cmd.CombinedOutput()
@@ -254,7 +254,7 @@ func TestProcessSingleFile(t *testing.T) {
 
 			// Get the module info for the specific test directory
 			testDir := filepath.Dir(absSourceFile)
-			info, err := getModuleInfo(testDir)
+			info, err := getModuleInfo(t.Context(), testDir)
 			if !tt.expectedErr {
 				require.NoError(t, err)
 			}
@@ -310,7 +310,7 @@ func TestProcessSingleFile_InvalidPackage(t *testing.T) {
 	// Use current directory for temporary file test
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	info, err := getModuleInfo(cwd)
+	info, err := getModuleInfo(t.Context(), cwd)
 	require.NoError(t, err)
 
 	// Test processSingleFile with file containing no interfaces
@@ -332,7 +332,7 @@ func TestProcessSingleFile_AbsolutePath(t *testing.T) {
 
 	// Get module info from the test directory
 	testDir := filepath.Dir(absPath)
-	info, err := getModuleInfo(testDir)
+	info, err := getModuleInfo(t.Context(), testDir)
 	require.NoError(t, err)
 
 	model, err := processSingleFile(absPath, info.Dir, info.Path)

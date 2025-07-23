@@ -4,6 +4,12 @@ on:
     tags:
       - v*
 
+permissions:
+  contents: write
+  id-token: write
+  packages: write
+  attestations: write
+
 jobs:
   release:
     name: Release Process

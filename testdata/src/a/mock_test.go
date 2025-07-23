@@ -12,6 +12,7 @@ import (
 // mocktail-:fmt.Stringer
 // mocktail:Orange
 // mocktail:d.Cherry
+// mocktail:Banana
 
 func TestName(t *testing.T) {
 	var s Pineapple = newPineappleMock(t).
@@ -19,7 +20,7 @@ func TestName(t *testing.T) {
 		OnWorld().TypedReturns("a").Once().
 		OnGoo().TypedReturns("", 1, Water{}).Once().
 		OnCoo("", Water{}).TypedReturns(Water{}).
-		TypedRun(func(s string, water Water) {}).Once().
+		TypedRun(func(string,  Water) {}).Once().
 		Parent
 
 	s.Hello(Water{})
@@ -27,7 +28,7 @@ func TestName(t *testing.T) {
 	s.Goo()
 	s.Coo(context.Background(), "", Water{})
 
-	fn := func(st Strawberry, stban Strawberry) Pineapple {
+	fn := func( Strawberry,  Strawberry) Pineapple {
 		return s
 	}
 
@@ -55,4 +56,14 @@ func TestName(t *testing.T) {
 	case <-time.After(10 * time.Millisecond):
 		t.Fatalf("timed out waiting for an orange juice")
 	}
+
+	var b Banana[string, int] = newBananaMock[string, int](t).
+		OnTree("a").Once().
+		OnFlower().TypedReturns(1).Once().
+		OnPudding().Once().
+		Parent
+
+	b.Tree("a")
+	b.Flower()
+	b.Pudding()
 }

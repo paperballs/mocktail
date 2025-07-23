@@ -4115,3 +4115,301 @@ func (_c *cherryV2CarrotCall) OnV2Carrot() *cherryV2CarrotCall {
 func (_c *cherryV2CarrotCall) OnV2CarrotRaw() *cherryV2CarrotCall {
 	return _c.Parent.OnV2CarrotRaw()
 }
+
+// bananaMock mock of Banana.
+type bananaMock[T any, U any] struct{ mock.Mock }
+
+// newBananaMock creates a new bananaMock.
+func newBananaMock[T any, U any](tb testing.TB) *bananaMock[T, U] {
+	tb.Helper()
+
+	m := &bananaMock[T, U]{}
+	m.Mock.Test(tb)
+
+	tb.Cleanup(func() { m.AssertExpectations(tb) })
+
+	return m
+}
+
+func (_m *bananaMock[T, U]) Flower() U {
+	_ret := _m.Called()
+
+	if _rf, ok := _ret.Get(0).(func() U); ok {
+		return _rf()
+	}
+
+	_ra0, _ := _ret.Get(0).(U)
+
+	return _ra0
+}
+
+func (_m *bananaMock[T, U]) OnFlower() *bananaFlowerCall[T, U] {
+	return &bananaFlowerCall[T, U]{Call: _m.Mock.On("Flower"), Parent: _m}
+}
+
+func (_m *bananaMock[T, U]) OnFlowerRaw() *bananaFlowerCall[T, U] {
+	return &bananaFlowerCall[T, U]{Call: _m.Mock.On("Flower"), Parent: _m}
+}
+
+type bananaFlowerCall[T any, U any] struct {
+	*mock.Call
+	Parent *bananaMock[T, U]
+}
+
+func (_c *bananaFlowerCall[T, U]) Panic(msg string) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Panic(msg)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) Once() *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Once()
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) Twice() *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Twice()
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) Times(i int) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Times(i)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) WaitUntil(w <-chan time.Time) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.WaitUntil(w)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) After(d time.Duration) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.After(d)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) Run(fn func(args mock.Arguments)) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Run(fn)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) Maybe() *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Maybe()
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) TypedReturns(a U) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Return(a)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) ReturnsFn(fn func() U) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Return(fn)
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) TypedRun(fn func()) *bananaFlowerCall[T, U] {
+	_c.Call = _c.Call.Run(func(args mock.Arguments) {
+		fn()
+	})
+	return _c
+}
+
+func (_c *bananaFlowerCall[T, U]) OnFlower() *bananaFlowerCall[T, U] {
+	return _c.Parent.OnFlower()
+}
+
+func (_c *bananaFlowerCall[T, U]) OnPudding() *bananaPuddingCall[T, U] {
+	return _c.Parent.OnPudding()
+}
+
+func (_c *bananaFlowerCall[T, U]) OnTree(aParam T) *bananaTreeCall[T, U] {
+	return _c.Parent.OnTree(aParam)
+}
+
+func (_c *bananaFlowerCall[T, U]) OnFlowerRaw() *bananaFlowerCall[T, U] {
+	return _c.Parent.OnFlowerRaw()
+}
+
+func (_c *bananaFlowerCall[T, U]) OnPuddingRaw() *bananaPuddingCall[T, U] {
+	return _c.Parent.OnPuddingRaw()
+}
+
+func (_c *bananaFlowerCall[T, U]) OnTreeRaw(aParam interface{}) *bananaTreeCall[T, U] {
+	return _c.Parent.OnTreeRaw(aParam)
+}
+
+func (_m *bananaMock[T, U]) Pudding() {
+	_m.Called()
+}
+
+func (_m *bananaMock[T, U]) OnPudding() *bananaPuddingCall[T, U] {
+	return &bananaPuddingCall[T, U]{Call: _m.Mock.On("Pudding"), Parent: _m}
+}
+
+func (_m *bananaMock[T, U]) OnPuddingRaw() *bananaPuddingCall[T, U] {
+	return &bananaPuddingCall[T, U]{Call: _m.Mock.On("Pudding"), Parent: _m}
+}
+
+type bananaPuddingCall[T any, U any] struct {
+	*mock.Call
+	Parent *bananaMock[T, U]
+}
+
+func (_c *bananaPuddingCall[T, U]) Panic(msg string) *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Panic(msg)
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) Once() *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Once()
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) Twice() *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Twice()
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) Times(i int) *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Times(i)
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) WaitUntil(w <-chan time.Time) *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.WaitUntil(w)
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) After(d time.Duration) *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.After(d)
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) Run(fn func(args mock.Arguments)) *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Run(fn)
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) Maybe() *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Maybe()
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) TypedRun(fn func()) *bananaPuddingCall[T, U] {
+	_c.Call = _c.Call.Run(func(args mock.Arguments) {
+		fn()
+	})
+	return _c
+}
+
+func (_c *bananaPuddingCall[T, U]) OnFlower() *bananaFlowerCall[T, U] {
+	return _c.Parent.OnFlower()
+}
+
+func (_c *bananaPuddingCall[T, U]) OnPudding() *bananaPuddingCall[T, U] {
+	return _c.Parent.OnPudding()
+}
+
+func (_c *bananaPuddingCall[T, U]) OnTree(aParam T) *bananaTreeCall[T, U] {
+	return _c.Parent.OnTree(aParam)
+}
+
+func (_c *bananaPuddingCall[T, U]) OnFlowerRaw() *bananaFlowerCall[T, U] {
+	return _c.Parent.OnFlowerRaw()
+}
+
+func (_c *bananaPuddingCall[T, U]) OnPuddingRaw() *bananaPuddingCall[T, U] {
+	return _c.Parent.OnPuddingRaw()
+}
+
+func (_c *bananaPuddingCall[T, U]) OnTreeRaw(aParam interface{}) *bananaTreeCall[T, U] {
+	return _c.Parent.OnTreeRaw(aParam)
+}
+
+func (_m *bananaMock[T, U]) Tree(aParam T) {
+	_m.Called(aParam)
+}
+
+func (_m *bananaMock[T, U]) OnTree(aParam T) *bananaTreeCall[T, U] {
+	return &bananaTreeCall[T, U]{Call: _m.Mock.On("Tree", aParam), Parent: _m}
+}
+
+func (_m *bananaMock[T, U]) OnTreeRaw(aParam interface{}) *bananaTreeCall[T, U] {
+	return &bananaTreeCall[T, U]{Call: _m.Mock.On("Tree", aParam), Parent: _m}
+}
+
+type bananaTreeCall[T any, U any] struct {
+	*mock.Call
+	Parent *bananaMock[T, U]
+}
+
+func (_c *bananaTreeCall[T, U]) Panic(msg string) *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Panic(msg)
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) Once() *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Once()
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) Twice() *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Twice()
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) Times(i int) *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Times(i)
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) WaitUntil(w <-chan time.Time) *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.WaitUntil(w)
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) After(d time.Duration) *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.After(d)
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) Run(fn func(args mock.Arguments)) *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Run(fn)
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) Maybe() *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Maybe()
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) TypedRun(fn func(T)) *bananaTreeCall[T, U] {
+	_c.Call = _c.Call.Run(func(args mock.Arguments) {
+		_aParam, _ := args.Get(0).(T)
+		fn(_aParam)
+	})
+	return _c
+}
+
+func (_c *bananaTreeCall[T, U]) OnFlower() *bananaFlowerCall[T, U] {
+	return _c.Parent.OnFlower()
+}
+
+func (_c *bananaTreeCall[T, U]) OnPudding() *bananaPuddingCall[T, U] {
+	return _c.Parent.OnPudding()
+}
+
+func (_c *bananaTreeCall[T, U]) OnTree(aParam T) *bananaTreeCall[T, U] {
+	return _c.Parent.OnTree(aParam)
+}
+
+func (_c *bananaTreeCall[T, U]) OnFlowerRaw() *bananaFlowerCall[T, U] {
+	return _c.Parent.OnFlowerRaw()
+}
+
+func (_c *bananaTreeCall[T, U]) OnPuddingRaw() *bananaPuddingCall[T, U] {
+	return _c.Parent.OnPuddingRaw()
+}
+
+func (_c *bananaTreeCall[T, U]) OnTreeRaw(aParam interface{}) *bananaTreeCall[T, U] {
+	return _c.Parent.OnTreeRaw(aParam)
+}

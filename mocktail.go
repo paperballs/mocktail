@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"go/format"
@@ -42,7 +43,9 @@ type InterfaceDesc struct {
 }
 
 func main() {
-	info, err := getModuleInfo(os.Getenv("MOCKTAIL_TEST_PATH"))
+	ctx := context.Background()
+
+	info, err := getModuleInfo(ctx, os.Getenv("MOCKTAIL_TEST_PATH"))
 	if err != nil {
 		log.Fatal("get module path", err)
 	}

@@ -1,65 +1,65 @@
+version: "2"
+
 run:
   timeout: 10m
 
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  gocyclo:
-    min-complexity: 15
-  goconst:
-    min-len: 5
-    min-occurrences: 3
-  misspell:
-    locale: US
-  funlen:
-    lines: -1
-    statements: 50
-  godox:
-    keywords:
-      - FIXME
-  gofumpt:
-    extra-rules: true
-  depguard:
-    rules:
-      main:
-        deny:
-          - pkg: "github.com/instana/testify"
-            desc: not allowed
-          - pkg: "github.com/pkg/errors"
-            desc: Should be replaced by standard lib errors package
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - sloppyReassign
-      - rangeValCopy
-      - octalLiteral
-      - paramTypeCombine # already handle by gofumpt.extra-rules
-      - unnamedResult
-      - hugeParam
-  tagliatelle:
-    case:
-      rules:
-        json: pascal
-  gosec:
-    excludes:
-      - G304
-      - G306
-
 linters:
-  enable-all: true
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    gocyclo:
+      min-complexity: 15
+    goconst:
+      min-len: 5
+      min-occurrences: 3
+    misspell:
+      locale: US
+    funlen:
+      lines: -1
+      statements: 50
+    godox:
+      keywords:
+        - FIXME
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "github.com/instana/testify"
+              desc: not allowed
+            - pkg: "github.com/pkg/errors"
+              desc: Should be replaced by standard lib errors package
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - sloppyReassign
+        - rangeValCopy
+        - octalLiteral
+        - paramTypeCombine # already handle by gofumpt.extra-rules
+        - unnamedResult
+        - hugeParam
+    tagliatelle:
+      case:
+        rules:
+          json: pascal
+    gosec:
+      excludes:
+        - G304
+        - G306
+
+  default: all
   disable:
-    - exportloopref # deprecated
     - sqlclosecheck # not relevant (SQL)
     - rowserrcheck # not relevant (SQL)
     - cyclop # duplicate of gocyclo
     - lll
     - dupl
     - wsl
+    - wsl_v5
     - nlreturn
     - mnd
     - err113
@@ -78,17 +78,25 @@ linters:
     - errchkjson
     - contextcheck
 
+  exclusions:
+    warn-unused: true
+    rules:
+      - text: fmt.Sprintf can be replaced with string
+        linters:
+          - perfsprint
+
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude:
-    - 'fmt.Sprintf can be replaced with string'
-  exclude-rules:
-    - path: .*_test.go
-      linters:
-        - funlen
-        - noctx
+
+formatters:
+  enable:
+    - gci
+    - gofumpt
+
+  settings:
+    gofumpt:
+      extra-rules: true
 
 output:
   show-stats: true

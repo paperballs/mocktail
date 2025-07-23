@@ -29,7 +29,7 @@ func TestMocktail(t *testing.T) {
 
 		t.Setenv("MOCKTAIL_TEST_PATH", filepath.Join(testRoot, entry.Name()))
 
-		output, err := exec.Command("go", "run", ".").CombinedOutput()
+		output, err := exec.CommandContext(t.Context(), "go", "run", ".").CombinedOutput()
 		t.Log(string(output))
 
 		require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestMocktail(t *testing.T) {
 			continue
 		}
 
-		cmd := exec.Command("go", "test", "-v", "./...")
+		cmd := exec.CommandContext(t.Context(), "go", "test", "-v", "./...")
 		cmd.Dir = filepath.Join(testRoot, entry.Name())
 
 		output, err := cmd.CombinedOutput()
@@ -88,7 +88,7 @@ func TestMocktail_exported(t *testing.T) {
 
 		t.Setenv("MOCKTAIL_TEST_PATH", filepath.Join(testRoot, entry.Name()))
 
-		output, err := exec.Command("go", "run", ".", "-e").CombinedOutput()
+		output, err := exec.CommandContext(t.Context(), "go", "run", ".", "-e").CombinedOutput()
 		t.Log(string(output))
 
 		require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestMocktail_exported(t *testing.T) {
 			continue
 		}
 
-		cmd := exec.Command("go", "test", "-v", "./...")
+		cmd := exec.CommandContext(t.Context(), "go", "test", "-v", "./...")
 		cmd.Dir = filepath.Join(testRoot, entry.Name())
 
 		output, err := cmd.CombinedOutput()

@@ -98,6 +98,36 @@ type Syrup struct {
 	Signature     *types.Signature
 }
 
+// Call generates mock.Call wrapper.
+func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
+	err := s.callBase(writer)
+	if err != nil {
+		return err
+	}
+
+	err = s.typedReturns(writer)
+	if err != nil {
+		return err
+	}
+
+	err = s.returnsFn(writer)
+	if err != nil {
+		return err
+	}
+
+	err = s.typedRun(writer)
+	if err != nil {
+		return err
+	}
+
+	err = s.callMethodsOn(writer, methods)
+	if err != nil {
+		return err
+	}
+
+	return s.callMethodOnRaw(writer, methods)
+}
+
 // MockMethod generates method mocks.
 func (s Syrup) MockMethod(writer io.Writer) error {
 	err := s.mockedMethod(writer)
@@ -310,36 +340,6 @@ func (s Syrup) methodOnRaw(writer io.Writer) error {
 	w.Println()
 
 	return w.Err()
-}
-
-// Call generates mock.Call wrapper.
-func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
-	err := s.callBase(writer)
-	if err != nil {
-		return err
-	}
-
-	err = s.typedReturns(writer)
-	if err != nil {
-		return err
-	}
-
-	err = s.returnsFn(writer)
-	if err != nil {
-		return err
-	}
-
-	err = s.typedRun(writer)
-	if err != nil {
-		return err
-	}
-
-	err = s.callMethodsOn(writer, methods)
-	if err != nil {
-		return err
-	}
-
-	return s.callMethodOnRaw(writer, methods)
 }
 
 func (s Syrup) callBase(writer io.Writer) error {

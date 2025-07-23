@@ -3,7 +3,7 @@
 default: clean lint test build
 
 lint:
-	golangci-lint run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.0 run
 
 clean:
 	rm -rf cover.out

@@ -1,6 +1,6 @@
 module github.com/paperballs/mocktail
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/ettle/strcase v0.2.0

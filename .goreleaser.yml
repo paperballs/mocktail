@@ -44,17 +44,4 @@ archives:
     files:
       - LICENSE
 
-brews:
-  - repository:
-      owner: traefik
-      name: homebrew-tap
-    commit_author:
-      name: traefiker
-      email: 30906710+traefiker@users.noreply.github.com
-    directory: Formula
-    homepage: https://github.com/traefik/mocktail
-    description: |
-      Naive code generator that creates mock implementation using testify.mock.
-    test: |
-      system "echo 0"
 

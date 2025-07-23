@@ -1,4 +1,4 @@
-module github.com/traefik/mocktail
+module github.com/paperballs/mocktail
 
 go 1.23.0
 

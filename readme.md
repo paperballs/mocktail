@@ -40,7 +40,7 @@ go install github.com/traefik/mocktail@latest
 
 You can use pre-compiled binaries:
 
-* To get the binary just download the latest release for your OS/Arch from [the releases page](https://github.com/traefik/mocktail/releases)
+* To get the binary just download the latest release for your OS/Arch from [the releases page](https://github.com/paperballs/mocktail/releases)
 * Unzip the archive.
 * Add `mocktail` in your `PATH`.
 

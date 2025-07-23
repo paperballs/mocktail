@@ -99,20 +99,6 @@ type Syrup struct {
 	TypeParams    *types.TypeParamList
 }
 
-// getTypeParamsUse returns type parameters for usage in method receivers.
-func (s Syrup) getTypeParamsUse() string {
-	if s.TypeParams == nil || s.TypeParams.Len() == 0 {
-		return ""
-	}
-
-	var names []string
-	for i := range s.TypeParams.Len() {
-		tp := s.TypeParams.At(i)
-		names = append(names, tp.Obj().Name())
-	}
-	return "[" + strings.Join(names, ", ") + "]"
-}
-
 // Call generates mock.Call wrapper.
 func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
 	err := s.callBase(writer)
@@ -156,6 +142,20 @@ func (s Syrup) MockMethod(writer io.Writer) error {
 	}
 
 	return s.methodOnRaw(writer)
+}
+
+// getTypeParamsUse returns type parameters for usage in method receivers.
+func (s Syrup) getTypeParamsUse() string {
+	if s.TypeParams == nil || s.TypeParams.Len() == 0 {
+		return ""
+	}
+
+	var names []string
+	for i := range s.TypeParams.Len() {
+		tp := s.TypeParams.At(i)
+		names = append(names, tp.Obj().Name())
+	}
+	return "[" + strings.Join(names, ", ") + "]"
 }
 
 func (s Syrup) mockedMethod(writer io.Writer) error {

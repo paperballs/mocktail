@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,9 +17,9 @@ type modInfo struct {
 	Main      bool   `json:"Main"`
 }
 
-func getModuleInfo(dir string) (modInfo, error) {
+func getModuleInfo(ctx context.Context, dir string) (modInfo, error) {
 	// https://github.com/golang/go/issues/44753#issuecomment-790089020
-	cmd := exec.Command("go", "list", "-m", "-json")
+	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-json")
 	if dir != "" {
 		cmd.Dir = dir
 	}

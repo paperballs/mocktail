@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/ettle/strcase"
@@ -14,6 +15,101 @@ import (
 
 //go:embed templates.go.tmpl
 var templatesFS embed.FS
+
+// Shared template parsing for efficient reuse.
+var (
+	parsedTemplate *template.Template
+	parseOnce      sync.Once
+	parseError     error
+)
+
+// getTemplate returns the parsed template instance, parsing it only once.
+func getTemplate() (*template.Template, error) {
+	parseOnce.Do(func() {
+		base := template.New("templates").Funcs(template.FuncMap{
+			"ToGoCamel":  strcase.ToGoCamel,
+			"ToGoPascal": strcase.ToGoPascal,
+		})
+
+		parsedTemplate, parseError = base.ParseFS(templatesFS, "templates.go.tmpl")
+	})
+	return parsedTemplate, parseError
+}
+
+// BaseTemplateData contains the most commonly used template fields.
+type BaseTemplateData struct {
+	InterfaceName string
+	MethodName    string
+	TypeParamsUse string
+}
+
+// Parameter represents a method parameter with all possible attributes.
+type Parameter struct {
+	Name      string
+	Type      string
+	IsContext bool
+	Position  int
+}
+
+// Result represents a method return value.
+type Result struct {
+	Name string
+	Type string
+}
+
+// Method represents a method for template generation.
+type Method struct {
+	Name       string
+	Params     []Parameter
+	IsVariadic bool
+}
+
+// TypeParamsInfo contains type parameter information for templates.
+type TypeParamsInfo struct {
+	Declaration string // [T any, U comparable]
+	Usage       string // [T, U]
+}
+
+// ImportsData contains data for imports template.
+type ImportsData struct {
+	Name    string
+	Imports []string
+}
+
+// MockBaseData contains data for mockBase template.
+type MockBaseData struct {
+	InterfaceName     string
+	ConstructorPrefix string
+	TypeParamsDecl    string
+	TypeParamsUse     string
+}
+
+// CombinedCallData contains all data needed for Call template execution.
+type CombinedCallData struct {
+	BaseTemplateData
+
+	TypeParamsDecl      string
+	ReturnParams        []Parameter
+	ReturnsFnSignature  string
+	TypedRunFnSignature string
+	InputParams         []Parameter
+	IsVariadic          bool
+	CallType            string
+	Methods             []Method
+	HasReturns          bool
+}
+
+// CombinedMockMethodData contains all data needed for MockMethod template execution.
+type CombinedMockMethodData struct {
+	BaseTemplateData
+
+	Params      []Parameter
+	Results     []Result
+	CallArgs    []string // For _m.Called() and _rf() calls - parameter names.
+	OnCallArgs  []string // For _m.Mock.On() calls - mock.Anything for functions.
+	FnSignature string
+	IsVariadic  bool
+}
 
 // Syrup generates method mocks and mock.Call wrapper.
 type Syrup struct {
@@ -26,47 +122,174 @@ type Syrup struct {
 
 // Call generates mock.Call wrapper.
 func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
-	err := s.callBase(writer)
+	tmpl, err := getTemplate()
 	if err != nil {
 		return err
 	}
 
-	err = s.typedReturns(writer)
-	if err != nil {
-		return err
+	params := s.Signature.Params()
+	results := s.Signature.Results()
+
+	// Generate type parameter declarations and usage
+	typeParamsDecl := ""
+	typeParamsUse := s.getTypeParamsUse()
+	if s.TypeParams != nil && s.TypeParams.Len() > 0 {
+		var params []string
+		var names []string
+		for i := range s.TypeParams.Len() {
+			tp := s.TypeParams.At(i)
+			params = append(params, tp.Obj().Name()+" "+tp.Constraint().String())
+			names = append(names, tp.Obj().Name())
+		}
+		typeParamsDecl = "[" + strings.Join(params, ", ") + "]"
+		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
 	}
 
-	err = s.returnsFn(writer)
-	if err != nil {
-		return err
+	// Generate return parameters
+	var returnParams []Parameter
+	hasReturns := results.Len() > 0
+	for i := range results.Len() {
+		rName := string(rune(int('a') + i))
+		returnParams = append(returnParams, Parameter{
+			Name: rName,
+			Type: s.getTypeName(results.At(i).Type(), false),
+		})
 	}
 
-	err = s.typedRun(writer)
-	if err != nil {
-		return err
+	// Generate input parameters for TypedRun
+	var inputParams []Parameter
+	var pos int
+	for i := range params.Len() {
+		param := params.At(i)
+		pType := param.Type()
+
+		if pType.String() == contextType {
+			continue
+		}
+
+		paramName := "_" + getParamName(param, i)
+		inputParams = append(inputParams, Parameter{
+			Name:     paramName,
+			Type:     s.getTypeName(pType, false),
+			Position: pos,
+		})
+		pos++
 	}
 
-	err = s.callMethodsOn(writer, methods)
-	if err != nil {
-		return err
+	// Generate methods data
+	var methodData []Method
+	for _, method := range methods {
+		sign := method.Type().(*types.Signature)
+		mParams := sign.Params()
+
+		var paramData []Parameter
+		for i := range mParams.Len() {
+			param := mParams.At(i)
+			isContext := param.Type().String() == contextType
+
+			name := getParamName(param, i)
+			paramData = append(paramData, Parameter{
+				Name:      name,
+				Type:      s.getTypeName(param.Type(), i == mParams.Len()-1),
+				IsContext: isContext,
+			})
+		}
+
+		methodData = append(methodData, Method{
+			Name:       method.Name(),
+			Params:     paramData,
+			IsVariadic: sign.Variadic(),
+		})
 	}
 
-	return s.callMethodOnRaw(writer, methods)
+	callType := fmt.Sprintf("%s%sCall%s", strcase.ToGoCamel(s.InterfaceName), s.Method.Name(), typeParamsUse)
+
+	data := CombinedCallData{
+		BaseTemplateData: BaseTemplateData{
+			InterfaceName: s.InterfaceName,
+			MethodName:    s.Method.Name(),
+			TypeParamsUse: typeParamsUse,
+		},
+		TypeParamsDecl:      typeParamsDecl,
+		ReturnParams:        returnParams,
+		ReturnsFnSignature:  s.createFuncSignature(params, results),
+		TypedRunFnSignature: s.createFuncSignature(params, nil),
+		InputParams:         inputParams,
+		IsVariadic:          s.Signature.Variadic(),
+		CallType:            callType,
+		Methods:             methodData,
+		HasReturns:          hasReturns,
+	}
+
+	return tmpl.ExecuteTemplate(writer, "combinedCall", data)
 }
 
 // MockMethod generates method mocks.
 func (s Syrup) MockMethod(writer io.Writer) error {
-	err := s.mockedMethod(writer)
+	tmpl, err := getTemplate()
 	if err != nil {
 		return err
 	}
 
-	err = s.methodOn(writer)
-	if err != nil {
-		return err
+	params := s.Signature.Params()
+	results := s.Signature.Results()
+
+	// Generate parameter data (including non-context params for On methods)
+	var paramsData []Parameter
+	var callArgs []string   // For _m.Called() and _rf() calls - always use parameter names
+	var onCallArgs []string // For _m.Mock.On() calls - use mock.Anything for functions
+	for i := range params.Len() {
+		param := params.At(i)
+		isContext := param.Type().String() == contextType
+
+		var name string
+		if isContext {
+			name = "_"
+		} else {
+			name = getParamName(param, i)
+			callArgs = append(callArgs, name)
+
+			// Function parameters use mock.Anything in On calls, others use the parameter name
+			if _, ok := param.Type().(*types.Signature); ok {
+				onCallArgs = append(onCallArgs, "mock.Anything")
+			} else {
+				onCallArgs = append(onCallArgs, name)
+			}
+		}
+
+		// Add all params to paramsData for template
+		paramsData = append(paramsData, Parameter{
+			Name:      name,
+			Type:      s.getTypeName(param.Type(), i == params.Len()-1),
+			IsContext: isContext,
+		})
 	}
 
-	return s.methodOnRaw(writer)
+	// Generate result data
+	var resultsData []Result
+	for i := range results.Len() {
+		rType := results.At(i).Type()
+		resultsData = append(resultsData, Result{
+			Name: getResultName(results.At(i), i),
+			Type: s.getTypeName(rType, false),
+		})
+	}
+
+	data := CombinedMockMethodData{
+		BaseTemplateData: BaseTemplateData{
+			InterfaceName: s.InterfaceName,
+			MethodName:    s.Method.Name(),
+			TypeParamsUse: s.getTypeParamsUse(),
+		},
+		Params:      paramsData,
+		Results:     resultsData,
+		CallArgs:    callArgs,
+		OnCallArgs:  onCallArgs,
+		FnSignature: s.createFuncSignature(params, results),
+		IsVariadic:  s.Signature.Variadic(),
+	}
+
+	return tmpl.ExecuteTemplate(writer, "combinedMockMethod", data)
 }
 
 // getTypeParamsUse returns type parameters for usage in method receivers.
@@ -81,411 +304,6 @@ func (s Syrup) getTypeParamsUse() string {
 		names = append(names, tp.Obj().Name())
 	}
 	return "[" + strings.Join(names, ", ") + "]"
-}
-
-func (s Syrup) mockedMethod(writer io.Writer) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	params := s.Signature.Params()
-	results := s.Signature.Results()
-
-	// Generate parameter data
-	var paramData []map[string]interface{}
-	var callArgs []string
-	for i := range params.Len() {
-		param := params.At(i)
-		isContext := param.Type().String() == contextType
-
-		var name string
-		if isContext {
-			name = "_"
-		} else {
-			name = getParamName(param, i)
-			callArgs = append(callArgs, name)
-		}
-
-		paramData = append(paramData, map[string]interface{}{
-			"Name":      name,
-			"Type":      s.getTypeName(param.Type(), i == params.Len()-1),
-			"IsContext": isContext,
-		})
-	}
-
-	// Generate result data
-	var resultData []map[string]string
-	for i := range results.Len() {
-		rType := results.At(i).Type()
-		resultData = append(resultData, map[string]string{
-			"Name": getResultName(results.At(i), i),
-			"Type": s.getTypeName(rType, false),
-		})
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
-		"TypeParamsUse": s.getTypeParamsUse(),
-		"Params":        paramData,
-		"Results":       resultData,
-		"CallArgs":      callArgs,
-		"FnSignature":   s.createFuncSignature(params, results),
-		"IsVariadic":    s.Signature.Variadic(),
-	}
-
-	return tmpl.ExecuteTemplate(writer, "mockedMethod", data)
-}
-
-func (s Syrup) methodOn(writer io.Writer) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	params := s.Signature.Params()
-
-	// Generate parameter data
-	var paramData []map[string]string
-	var callArgs []string
-	for i := range params.Len() {
-		param := params.At(i)
-
-		if param.Type().String() == contextType {
-			continue
-		}
-
-		name := getParamName(param, i)
-		paramData = append(paramData, map[string]string{
-			"Name": name,
-			"Type": s.getTypeName(param.Type(), i == params.Len()-1),
-		})
-
-		// Function parameters use mock.Anything, others use the parameter name
-		if _, ok := param.Type().(*types.Signature); ok {
-			callArgs = append(callArgs, "mock.Anything")
-		} else {
-			callArgs = append(callArgs, name)
-		}
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
-		"TypeParamsUse": s.getTypeParamsUse(),
-		"Params":        paramData,
-		"CallArgs":      callArgs,
-	}
-
-	return tmpl.ExecuteTemplate(writer, "methodOn", data)
-}
-
-func (s Syrup) methodOnRaw(writer io.Writer) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	params := s.Signature.Params()
-
-	// Generate parameter data
-	var paramData []map[string]string
-	var callArgs []string
-	for i := range params.Len() {
-		param := params.At(i)
-
-		if param.Type().String() == contextType {
-			continue
-		}
-
-		name := getParamName(param, i)
-		paramData = append(paramData, map[string]string{
-			"Name": name,
-			"Type": "interface{}", // For raw methods, all params are interface{}
-		})
-
-		// Function parameters use mock.Anything, others use the parameter name
-		if _, ok := param.Type().(*types.Signature); ok {
-			callArgs = append(callArgs, "mock.Anything")
-		} else {
-			callArgs = append(callArgs, name)
-		}
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
-		"TypeParamsUse": s.getTypeParamsUse(),
-		"Params":        paramData,
-		"CallArgs":      callArgs,
-	}
-
-	return tmpl.ExecuteTemplate(writer, "methodOnRaw", data)
-}
-
-func (s Syrup) callBase(writer io.Writer) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	// Generate type parameter declarations and usage
-	typeParamsDecl := ""
-	typeParamsUse := ""
-	if s.TypeParams != nil && s.TypeParams.Len() > 0 {
-		var params []string
-		var names []string
-		for i := range s.TypeParams.Len() {
-			tp := s.TypeParams.At(i)
-			params = append(params, tp.Obj().Name()+" "+tp.Constraint().String())
-			names = append(names, tp.Obj().Name())
-		}
-		typeParamsDecl = "[" + strings.Join(params, ", ") + "]"
-		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
-	}
-
-	data := map[string]string{
-		"InterfaceName":  s.InterfaceName,
-		"MethodName":     s.Method.Name(),
-		"TypeParamsDecl": typeParamsDecl,
-		"TypeParamsUse":  typeParamsUse,
-	}
-
-	return tmpl.ExecuteTemplate(writer, "callBase", data)
-}
-
-func (s Syrup) typedReturns(writer io.Writer) error {
-	results := s.Signature.Results()
-	if results.Len() <= 0 {
-		return nil
-	}
-
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	// Generate return parameters data
-	var returnParams []map[string]string
-	for i := range results.Len() {
-		rName := string(rune(int('a') + i))
-		returnParams = append(returnParams, map[string]string{
-			"Name": rName,
-			"Type": s.getTypeName(results.At(i).Type(), false),
-		})
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
-		"TypeParamsUse": s.getTypeParamsUse(),
-		"ReturnParams":  returnParams,
-	}
-
-	return tmpl.ExecuteTemplate(writer, "typedReturns", data)
-}
-
-func (s Syrup) typedRun(writer io.Writer) error {
-	params := s.Signature.Params()
-
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	// Generate input parameters data
-	var inputParams []map[string]interface{}
-	var pos int
-	for i := range params.Len() {
-		param := params.At(i)
-		pType := param.Type()
-
-		if pType.String() == contextType {
-			continue
-		}
-
-		paramName := "_" + getParamName(param, i)
-		inputParams = append(inputParams, map[string]interface{}{
-			"Name":     paramName,
-			"Type":     s.getTypeName(pType, false),
-			"Position": pos,
-		})
-		pos++
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
-		"TypeParamsUse": s.getTypeParamsUse(),
-		"FnSignature":   s.createFuncSignature(params, nil),
-		"InputParams":   inputParams,
-		"IsVariadic":    s.Signature.Variadic(),
-	}
-
-	return tmpl.ExecuteTemplate(writer, "typedRun", data)
-}
-
-func (s Syrup) returnsFn(writer io.Writer) error {
-	results := s.Signature.Results()
-	if results.Len() < 1 {
-		return nil
-	}
-
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	params := s.Signature.Params()
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"MethodName":    s.Method.Name(),
-		"TypeParamsUse": s.getTypeParamsUse(),
-		"FnSignature":   s.createFuncSignature(params, results),
-	}
-
-	return tmpl.ExecuteTemplate(writer, "returnsFn", data)
-}
-
-func (s Syrup) callMethodsOn(writer io.Writer, methods []*types.Func) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	typeParamsUse := s.getTypeParamsUse()
-	callType := fmt.Sprintf("%s%sCall%s", strcase.ToGoCamel(s.InterfaceName), s.Method.Name(), typeParamsUse)
-
-	// Generate method data for template
-	var methodData []map[string]interface{}
-	for _, method := range methods {
-		sign := method.Type().(*types.Signature)
-		params := sign.Params()
-
-		var paramData []map[string]string
-		for i := range params.Len() {
-			param := params.At(i)
-
-			if param.Type().String() == contextType {
-				continue
-			}
-
-			name := getParamName(param, i)
-			paramData = append(paramData, map[string]string{
-				"Name": name,
-				"Type": s.getTypeName(param.Type(), i == params.Len()-1),
-			})
-		}
-
-		methodData = append(methodData, map[string]interface{}{
-			"Name":       method.Name(),
-			"Params":     paramData,
-			"IsVariadic": sign.Variadic(),
-		})
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"CallType":      callType,
-		"TypeParamsUse": typeParamsUse,
-		"Methods":       methodData,
-	}
-
-	return tmpl.ExecuteTemplate(writer, "callMethodsOn", data)
-}
-
-func (s Syrup) callMethodOnRaw(writer io.Writer, methods []*types.Func) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
-	if err != nil {
-		return err
-	}
-
-	typeParamsUse := s.getTypeParamsUse()
-	callType := fmt.Sprintf("%s%sCall%s", strcase.ToGoCamel(s.InterfaceName), s.Method.Name(), typeParamsUse)
-
-	// Generate method data for template
-	var methodData []map[string]interface{}
-	for _, method := range methods {
-		sign := method.Type().(*types.Signature)
-		params := sign.Params()
-
-		var paramData []map[string]string
-		for i := range params.Len() {
-			param := params.At(i)
-
-			if param.Type().String() == contextType {
-				continue
-			}
-
-			name := getParamName(param, i)
-			paramData = append(paramData, map[string]string{
-				"Name": name,
-				"Type": "interface{}", // For raw methods, all params are interface{}
-			})
-		}
-
-		methodData = append(methodData, map[string]interface{}{
-			"Name":       method.Name(),
-			"Params":     paramData,
-			"IsVariadic": sign.Variadic(),
-		})
-	}
-
-	data := map[string]interface{}{
-		"InterfaceName": s.InterfaceName,
-		"CallType":      callType,
-		"TypeParamsUse": typeParamsUse,
-		"Methods":       methodData,
-	}
-
-	return tmpl.ExecuteTemplate(writer, "callMethodOnRaw", data)
 }
 
 func (s Syrup) getTypeName(t types.Type, last bool) string {
@@ -612,29 +430,19 @@ func (s Syrup) createFuncSignature(params, results *types.Tuple) string {
 }
 
 func writeImports(writer io.Writer, descPkg PackageDesc) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
+	tmpl, err := getTemplate()
 	if err != nil {
 		return err
 	}
 
-	data := map[string]interface{}{
-		"Name":    descPkg.Pkg.Name(),
-		"Imports": quickGoImports(descPkg),
+	data := ImportsData{
+		Name:    descPkg.Pkg.Name(),
+		Imports: quickGoImports(descPkg),
 	}
 	return tmpl.ExecuteTemplate(writer, "imports", data)
 }
 
 func writeMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool) error {
-	base := template.New("templates").Funcs(template.FuncMap{
-		"ToGoCamel":  strcase.ToGoCamel,
-		"ToGoPascal": strcase.ToGoPascal,
-	})
-
 	constructorPrefix := "new"
 	if exported {
 		constructorPrefix = "New"
@@ -655,16 +463,16 @@ func writeMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool)
 		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
 	}
 
-	tmpl, err := base.ParseFS(templatesFS, "templates.go.tmpl")
+	tmpl, err := getTemplate()
 	if err != nil {
 		return err
 	}
 
-	data := map[string]interface{}{
-		"InterfaceName":     interfaceDesc.Name,
-		"ConstructorPrefix": constructorPrefix,
-		"TypeParamsDecl":    typeParamsDecl,
-		"TypeParamsUse":     typeParamsUse,
+	data := MockBaseData{
+		InterfaceName:     interfaceDesc.Name,
+		ConstructorPrefix: constructorPrefix,
+		TypeParamsDecl:    typeParamsDecl,
+		TypeParamsUse:     typeParamsUse,
 	}
 	return tmpl.ExecuteTemplate(writer, "mockBase", data)
 }
@@ -715,42 +523,4 @@ func getResultName(tVar *types.Var, i int) string {
 		return fmt.Sprintf("_r%s%d", string(rune('a'+i)), i)
 	}
 	return tVar.Name()
-}
-
-// Writer is a wrapper around Print+ functions.
-type Writer struct {
-	writer io.Writer
-	err    error
-}
-
-// Err returns error from the other methods.
-func (w *Writer) Err() error {
-	return w.err
-}
-
-// Print formats using the default formats for its operands and writes to standard output.
-func (w *Writer) Print(a ...interface{}) {
-	if w.err != nil {
-		return
-	}
-
-	_, w.err = fmt.Fprint(w.writer, a...)
-}
-
-// Printf formats according to a format specifier and writes to standard output.
-func (w *Writer) Printf(pattern string, a ...interface{}) {
-	if w.err != nil {
-		return
-	}
-
-	_, w.err = fmt.Fprintf(w.writer, pattern, a...)
-}
-
-// Println formats using the default formats for its operands and writes to standard output.
-func (w *Writer) Println(a ...interface{}) {
-	if w.err != nil {
-		return
-	}
-
-	_, w.err = fmt.Fprintln(w.writer, a...)
 }

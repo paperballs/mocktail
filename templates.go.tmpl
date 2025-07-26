@@ -28,8 +28,8 @@ func {{.ConstructorPrefix}}{{ .InterfaceName | ToGoPascal }}Mock{{ .TypeParamsDe
 }
 {{end}}
 
-{{/* Template for generating call wrapper base methods */}}
-{{define "callBase"}}
+{{/* Combined template for all Call-related functionality */}}
+{{define "combinedCall"}}
 type {{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsDecl }} struct{
 	*mock.Call
 	Parent *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}
@@ -76,20 +76,19 @@ func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse
 	return _c
 }
 
-{{end}}
-
-{{/* Template for generating typed returns method */}}
-{{define "typedReturns"}}
+{{ if .HasReturns }}
 func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) TypedReturns({{ range $i, $param := .ReturnParams }}{{ if $i }}, {{ end }}{{ $param.Name }} {{ $param.Type }}{{ end }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Return({{ range $i, $param := .ReturnParams }}{{ if $i }}, {{ end }}{{ $param.Name }}{{ end }})
 	return _c
 }
 
-{{end}}
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) ReturnsFn(fn {{ .ReturnsFnSignature }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
+	_c.Call = _c.Return(fn)
+	return _c
+}
+{{ end }}
 
-{{/* Template for generating typed run method */}}
-{{define "typedRun"}}
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) TypedRun(fn {{ .FnSignature }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
+func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) TypedRun(fn {{ .TypedRunFnSignature }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
 	_c.Call = _c.Call.Run(func(args mock.Arguments) {
 {{- range $i, $param := .InputParams }}
 {{- if eq $param.Type "string" }}
@@ -109,39 +108,22 @@ func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse
 	return _c
 }
 
-{{end}}
-
-{{/* Template for generating returns function method */}}
-{{define "returnsFn"}}
-func (_c *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}) ReturnsFn(fn {{ .FnSignature }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
-	_c.Call = _c.Return(fn)
-	return _c
+{{ range $method := .Methods }}
+func (_c *{{ $.CallType }}) On{{ $method.Name }}({{- $first := true }}{{ range $param := $method.Params }}{{ if not $param.IsContext }}{{ if not $first }}, {{ end }}{{ $param.Name }} {{ $param.Type }}{{ $first = false }}{{ end }}{{ end }}) *{{ $.InterfaceName | ToGoCamel }}{{ $method.Name }}Call{{ $.TypeParamsUse }} {
+	return _c.Parent.On{{ $method.Name }}({{- $first := true }}{{ range $param := $method.Params }}{{ if not $param.IsContext }}{{ if not $first }}, {{ end }}{{ $param.Name }}{{ $first = false }}{{ end }}{{ end }}{{ if $method.IsVariadic }}...{{ end }})
 }
 
-{{end}}
-
-{{/* Template for generating call methods on - allows chaining to other method calls */}}
-{{define "callMethodsOn"}}
-{{- range $method := .Methods }}
-func (_c *{{ $.CallType }}) On{{ $method.Name }}({{ range $i, $param := $method.Params }}{{ if $i }}, {{ end }}{{ $param.Name }} {{ $param.Type }}{{ end }}) *{{ $.InterfaceName | ToGoCamel }}{{ $method.Name }}Call{{ $.TypeParamsUse }} {
-	return _c.Parent.On{{ $method.Name }}({{ range $i, $param := $method.Params }}{{ if $i }}, {{ end }}{{ $param.Name }}{{ end }}{{ if $method.IsVariadic }}...{{ end }})
+{{ end }}
+{{ range $method := .Methods }}
+func (_c *{{ $.CallType }}) On{{ $method.Name }}Raw({{- $first := true }}{{ range $param := $method.Params }}{{ if not $param.IsContext }}{{ if not $first }}, {{ end }}{{ $param.Name }} interface{}{{ $first = false }}{{ end }}{{ end }}) *{{ $.InterfaceName | ToGoCamel }}{{ $method.Name }}Call{{ $.TypeParamsUse }} {
+	return _c.Parent.On{{ $method.Name }}Raw({{- $first := true }}{{ range $param := $method.Params }}{{ if not $param.IsContext }}{{ if not $first }}, {{ end }}{{ $param.Name }}{{ $first = false }}{{ end }}{{ end }})
 }
 
 {{ end }}
 {{end}}
 
-{{/* Template for generating call methods on raw - allows chaining to other method calls with interface{} params */}}
-{{define "callMethodOnRaw"}}
-{{- range $method := .Methods }}
-func (_c *{{ $.CallType }}) On{{ $method.Name }}Raw({{ range $i, $param := $method.Params }}{{ if $i }}, {{ end }}{{ $param.Name }} interface{}{{ end }}) *{{ $.InterfaceName | ToGoCamel }}{{ $method.Name }}Call{{ $.TypeParamsUse }} {
-	return _c.Parent.On{{ $method.Name }}Raw({{ range $i, $param := $method.Params }}{{ if $i }}, {{ end }}{{ $param.Name }}{{ end }})
-}
-
-{{ end }}
-{{end}}
-
-{{/* Template for generating mocked method implementation */}}
-{{define "mockedMethod"}}
+{{/* Combined template for all MockMethod-related functionality */}}
+{{define "combinedMockMethod"}}
 func (_m *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}) {{ .MethodName }}({{ range $i, $param := .Params }}{{ if $i }}, {{ end }}{{ if $param.IsContext }}_{{ else }}{{ $param.Name }}{{ end }} {{ $param.Type }}{{ end }}) {{ if gt (len .Results) 1 }}({{ end }}{{ range $i, $result := .Results }}{{ if $i }}, {{ end }}{{ $result.Type }}{{ end }}{{ if gt (len .Results) 1 }}){{ end }} {
 {{- if .Results }}
 	_ret := _m.Called({{ range $i, $param := .CallArgs }}{{ if $i }}, {{ end }}{{ $param }}{{ end }})
@@ -163,20 +145,12 @@ func (_m *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}) {{ .MethodNa
 {{- end }}
 }
 
-{{end}}
-
-{{/* Template for generating method On - creates call objects for setting up expectations */}}
-{{define "methodOn"}}
-func (_m *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}) On{{ .MethodName }}({{ range $i, $param := .Params }}{{ if $i }}, {{ end }}{{ $param.Name }} {{ $param.Type }}{{ end }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
-	return &{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}{Call: _m.Mock.On("{{ .MethodName }}", {{ range $i, $param := .CallArgs }}{{ if $i }}, {{ end }}{{ $param }}{{ end }}), Parent: _m}
+func (_m *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}) On{{ .MethodName }}({{- $first := true }}{{ range $param := .Params }}{{ if not $param.IsContext }}{{ if not $first }}, {{ end }}{{ $param.Name }} {{ $param.Type }}{{ $first = false }}{{ end }}{{ end }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
+	return &{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}{Call: _m.Mock.On("{{ .MethodName }}", {{ range $i, $param := .OnCallArgs }}{{ if $i }}, {{ end }}{{ $param }}{{ end }}), Parent: _m}
 }
 
-{{end}}
-
-{{/* Template for generating method OnRaw - creates call objects with interface{} parameters */}}
-{{define "methodOnRaw"}}
-func (_m *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}) On{{ .MethodName }}Raw({{ range $i, $param := .Params }}{{ if $i }}, {{ end }}{{ $param.Name }} interface{}{{ end }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
-	return &{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}{Call: _m.Mock.On("{{ .MethodName }}", {{ range $i, $param := .CallArgs }}{{ if $i }}, {{ end }}{{ $param }}{{ end }}), Parent: _m}
+func (_m *{{ .InterfaceName | ToGoCamel }}Mock{{ .TypeParamsUse }}) On{{ .MethodName }}Raw({{- $first := true }}{{ range $param := .Params }}{{ if not $param.IsContext }}{{ if not $first }}, {{ end }}{{ $param.Name }} interface{}{{ $first = false }}{{ end }}{{ end }}) *{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }} {
+	return &{{ .InterfaceName | ToGoCamel }}{{ .MethodName }}Call{{ .TypeParamsUse }}{Call: _m.Mock.On("{{ .MethodName }}", {{ range $i, $param := .OnCallArgs }}{{ if $i }}, {{ end }}{{ $param }}{{ end }}), Parent: _m}
 }
 
 {{end}}

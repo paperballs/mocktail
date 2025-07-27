@@ -7,7 +7,6 @@ import (
 	"io"
 	"sort"
 	"strings"
-	"sync"
 	"text/template"
 
 	"github.com/ettle/strcase"
@@ -15,26 +14,6 @@ import (
 
 //go:embed templates.go.tmpl
 var templatesFS embed.FS
-
-// Shared template parsing for efficient reuse.
-var (
-	parsedTemplate *template.Template
-	parseOnce      sync.Once
-	parseError     error
-)
-
-// getTemplate returns the parsed template instance, parsing it only once.
-func getTemplate() (*template.Template, error) {
-	parseOnce.Do(func() {
-		base := template.New("templates").Funcs(template.FuncMap{
-			"ToGoCamel":  strcase.ToGoCamel,
-			"ToGoPascal": strcase.ToGoPascal,
-		})
-
-		parsedTemplate, parseError = base.ParseFS(templatesFS, "templates.go.tmpl")
-	})
-	return parsedTemplate, parseError
-}
 
 // BaseTemplateData contains the most commonly used template fields.
 type BaseTemplateData struct {
@@ -118,15 +97,30 @@ type Syrup struct {
 	Method        *types.Func
 	Signature     *types.Signature
 	TypeParams    *types.TypeParamList
+	template      *template.Template
+}
+
+// New creates a new Syrup instance with the specified template file.
+func New(
+	pkgPath string,
+	interfaceName string,
+	method *types.Func,
+	signature *types.Signature,
+	typeParams *types.TypeParamList,
+	tmpl *template.Template,
+) (*Syrup, error) {
+	return &Syrup{
+		PkgPath:       pkgPath,
+		InterfaceName: interfaceName,
+		Method:        method,
+		Signature:     signature,
+		TypeParams:    typeParams,
+		template:      tmpl,
+	}, nil
 }
 
 // Call generates mock.Call wrapper.
 func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
-	tmpl, err := getTemplate()
-	if err != nil {
-		return err
-	}
-
 	params := s.Signature.Params()
 	results := s.Signature.Results()
 
@@ -221,16 +215,11 @@ func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
 		HasReturns:          hasReturns,
 	}
 
-	return tmpl.ExecuteTemplate(writer, "combinedCall", data)
+	return s.template.ExecuteTemplate(writer, "combinedCall", data)
 }
 
 // MockMethod generates method mocks.
 func (s Syrup) MockMethod(writer io.Writer) error {
-	tmpl, err := getTemplate()
-	if err != nil {
-		return err
-	}
-
 	params := s.Signature.Params()
 	results := s.Signature.Results()
 
@@ -289,7 +278,7 @@ func (s Syrup) MockMethod(writer io.Writer) error {
 		IsVariadic:  s.Signature.Variadic(),
 	}
 
-	return tmpl.ExecuteTemplate(writer, "combinedMockMethod", data)
+	return s.template.ExecuteTemplate(writer, "combinedMockMethod", data)
 }
 
 // getTypeParamsUse returns type parameters for usage in method receivers.
@@ -429,20 +418,17 @@ func (s Syrup) createFuncSignature(params, results *types.Tuple) string {
 	return fnSign
 }
 
-func writeImports(writer io.Writer, descPkg PackageDesc) error {
-	tmpl, err := getTemplate()
-	if err != nil {
-		return err
-	}
-
+// WriteImports generates package imports using the Syrup's template.
+func (s Syrup) WriteImports(writer io.Writer, descPkg PackageDesc) error {
 	data := ImportsData{
 		Name:    descPkg.Pkg.Name(),
 		Imports: quickGoImports(descPkg),
 	}
-	return tmpl.ExecuteTemplate(writer, "imports", data)
+	return s.template.ExecuteTemplate(writer, "imports", data)
 }
 
-func writeMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool) error {
+// WriteMockBase generates mock base struct and constructor using the Syrup's template.
+func (s Syrup) WriteMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool) error {
 	constructorPrefix := "new"
 	if exported {
 		constructorPrefix = "New"
@@ -463,18 +449,13 @@ func writeMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool)
 		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
 	}
 
-	tmpl, err := getTemplate()
-	if err != nil {
-		return err
-	}
-
 	data := MockBaseData{
 		InterfaceName:     interfaceDesc.Name,
 		ConstructorPrefix: constructorPrefix,
 		TypeParamsDecl:    typeParamsDecl,
 		TypeParamsUse:     typeParamsUse,
 	}
-	return tmpl.ExecuteTemplate(writer, "mockBase", data)
+	return s.template.ExecuteTemplate(writer, "mockBase", data)
 }
 
 func quickGoImports(descPkg PackageDesc) []string {
@@ -523,4 +504,19 @@ func getResultName(tVar *types.Var, i int) string {
 		return fmt.Sprintf("_r%s%d", string(rune('a'+i)), i)
 	}
 	return tVar.Name()
+}
+
+func getTemplate(templateFile string) (*template.Template, error) {
+	base := template.New("templates").Funcs(template.FuncMap{
+		"ToGoCamel":  strcase.ToGoCamel,
+		"ToGoPascal": strcase.ToGoPascal,
+	})
+
+	if templateFile != "" {
+		// Use custom template file
+		return base.ParseFiles(templateFile)
+	}
+
+	// Use embedded template
+	return base.ParseFS(templatesFS, "templates.go.tmpl")
 }

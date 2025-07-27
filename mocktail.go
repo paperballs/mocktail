@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -52,7 +53,9 @@ func main() {
 	}
 
 	var exported bool
+	var templateFile string
 	flag.BoolVar(&exported, "e", false, "generate exported mocks")
+	flag.StringVar(&templateFile, "template", "", "path to custom template file (uses embedded template if not specified)")
 	flag.Parse()
 
 	root := info.Dir
@@ -71,7 +74,12 @@ func main() {
 		return
 	}
 
-	err = generate(model, exported)
+	tmpl, err := getTemplate(templateFile)
+	if err != nil {
+		log.Fatalf("parse template: %v", err)
+	}
+
+	err = generate(model, exported, tmpl)
 	if err != nil {
 		log.Fatalf("generate: %v", err)
 	}
@@ -269,19 +277,65 @@ func getTypeImports(t types.Type) []string {
 	}
 }
 
-func generate(model map[string]PackageDesc, exported bool) error {
+func generate(model map[string]PackageDesc, exported bool, tmpl *template.Template) error {
 	for fp, pkgDesc := range model {
 		buffer := bytes.NewBufferString("")
 
-		err := writeImports(buffer, pkgDesc)
-		if err != nil {
-			return err
+		// Create a Syrup instance with the first method to parse the template once
+		var templateSyrup *Syrup
+		if len(pkgDesc.Interfaces) > 0 && len(pkgDesc.Interfaces[0].Methods) > 0 {
+			firstMethod := pkgDesc.Interfaces[0].Methods[0]
+			signature := firstMethod.Type().(*types.Signature)
+			var err error
+			templateSyrup, err = New(
+				pkgDesc.Pkg.Path(),
+				pkgDesc.Interfaces[0].Name,
+				firstMethod,
+				signature,
+				pkgDesc.Interfaces[0].TypeParams,
+				tmpl,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Write imports using the template Syrup
+		if templateSyrup != nil {
+			err := templateSyrup.WriteImports(buffer, pkgDesc)
+			if err != nil {
+				return err
+			}
 		}
 
 		for _, interfaceDesc := range pkgDesc.Interfaces {
-			err = writeMockBase(buffer, interfaceDesc, exported)
-			if err != nil {
-				return err
+			// Write mock base using the template Syrup (or create one if we don't have one)
+			var baseSyrup *Syrup
+			if templateSyrup != nil && templateSyrup.InterfaceName == interfaceDesc.Name {
+				baseSyrup = templateSyrup
+			} else if len(interfaceDesc.Methods) > 0 {
+				// Create a Syrup for this interface
+				firstMethod := interfaceDesc.Methods[0]
+				signature := firstMethod.Type().(*types.Signature)
+				var err error
+				baseSyrup, err = New(
+					pkgDesc.Pkg.Path(),
+					interfaceDesc.Name,
+					firstMethod,
+					signature,
+					interfaceDesc.TypeParams,
+					tmpl,
+				)
+				if err != nil {
+					return err
+				}
+			}
+
+			if baseSyrup != nil {
+				err := baseSyrup.WriteMockBase(buffer, interfaceDesc, exported)
+				if err != nil {
+					return err
+				}
 			}
 
 			_, _ = buffer.WriteString("\n")
@@ -289,15 +343,34 @@ func generate(model map[string]PackageDesc, exported bool) error {
 			for _, method := range interfaceDesc.Methods {
 				signature := method.Type().(*types.Signature)
 
-				syrup := Syrup{
-					PkgPath:       pkgDesc.Pkg.Path(),
-					InterfaceName: interfaceDesc.Name,
-					Method:        method,
-					Signature:     signature,
-					TypeParams:    interfaceDesc.TypeParams,
+				var syrup *Syrup
+				if baseSyrup != nil {
+					// Create a method-specific Syrup instance (reusing the parsed template)
+					syrup = &Syrup{
+						PkgPath:       pkgDesc.Pkg.Path(),
+						InterfaceName: interfaceDesc.Name,
+						Method:        method,
+						Signature:     signature,
+						TypeParams:    interfaceDesc.TypeParams,
+						template:      baseSyrup.template, // Reuse the already parsed template
+					}
+				} else {
+					// Fallback: create a new Syrup (shouldn't happen in normal cases)
+					var err error
+					syrup, err = New(
+						pkgDesc.Pkg.Path(),
+						interfaceDesc.Name,
+						method,
+						signature,
+						interfaceDesc.TypeParams,
+						tmpl,
+					)
+					if err != nil {
+						return err
+					}
 				}
 
-				err = syrup.MockMethod(buffer)
+				err := syrup.MockMethod(buffer)
 				if err != nil {
 					return err
 				}

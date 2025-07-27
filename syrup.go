@@ -108,7 +108,7 @@ func New(
 	signature *types.Signature,
 	typeParams *types.TypeParamList,
 	tmpl *template.Template,
-) (*Syrup, error) {
+) *Syrup {
 	return &Syrup{
 		PkgPath:       pkgPath,
 		InterfaceName: interfaceName,
@@ -116,7 +116,7 @@ func New(
 		Signature:     signature,
 		TypeParams:    typeParams,
 		template:      tmpl,
-	}, nil
+	}
 }
 
 // Call generates mock.Call wrapper.
@@ -281,6 +281,46 @@ func (s Syrup) MockMethod(writer io.Writer) error {
 	return s.template.ExecuteTemplate(writer, "combinedMockMethod", data)
 }
 
+// WriteImports generates package imports using the Syrup's template.
+func (s Syrup) WriteImports(writer io.Writer, descPkg PackageDesc) error {
+	data := ImportsData{
+		Name:    descPkg.Pkg.Name(),
+		Imports: quickGoImports(descPkg),
+	}
+	return s.template.ExecuteTemplate(writer, "imports", data)
+}
+
+// WriteMockBase generates mock base struct and constructor using the Syrup's template.
+func (s Syrup) WriteMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool) error {
+	constructorPrefix := "new"
+	if exported {
+		constructorPrefix = "New"
+	}
+
+	// Generate type parameter declarations and usage
+	typeParamsDecl := ""
+	typeParamsUse := ""
+	if interfaceDesc.TypeParams != nil && interfaceDesc.TypeParams.Len() > 0 {
+		var params []string
+		var names []string
+		for i := range interfaceDesc.TypeParams.Len() {
+			tp := interfaceDesc.TypeParams.At(i)
+			params = append(params, tp.Obj().Name()+" "+tp.Constraint().String())
+			names = append(names, tp.Obj().Name())
+		}
+		typeParamsDecl = "[" + strings.Join(params, ", ") + "]"
+		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
+	}
+
+	data := MockBaseData{
+		InterfaceName:     interfaceDesc.Name,
+		ConstructorPrefix: constructorPrefix,
+		TypeParamsDecl:    typeParamsDecl,
+		TypeParamsUse:     typeParamsUse,
+	}
+	return s.template.ExecuteTemplate(writer, "mockBase", data)
+}
+
 // getTypeParamsUse returns type parameters for usage in method receivers.
 func (s Syrup) getTypeParamsUse() string {
 	if s.TypeParams == nil || s.TypeParams.Len() == 0 {
@@ -416,46 +456,6 @@ func (s Syrup) createFuncSignature(params, results *types.Tuple) string {
 	}
 
 	return fnSign
-}
-
-// WriteImports generates package imports using the Syrup's template.
-func (s Syrup) WriteImports(writer io.Writer, descPkg PackageDesc) error {
-	data := ImportsData{
-		Name:    descPkg.Pkg.Name(),
-		Imports: quickGoImports(descPkg),
-	}
-	return s.template.ExecuteTemplate(writer, "imports", data)
-}
-
-// WriteMockBase generates mock base struct and constructor using the Syrup's template.
-func (s Syrup) WriteMockBase(writer io.Writer, interfaceDesc InterfaceDesc, exported bool) error {
-	constructorPrefix := "new"
-	if exported {
-		constructorPrefix = "New"
-	}
-
-	// Generate type parameter declarations and usage
-	typeParamsDecl := ""
-	typeParamsUse := ""
-	if interfaceDesc.TypeParams != nil && interfaceDesc.TypeParams.Len() > 0 {
-		var params []string
-		var names []string
-		for i := range interfaceDesc.TypeParams.Len() {
-			tp := interfaceDesc.TypeParams.At(i)
-			params = append(params, tp.Obj().Name()+" "+tp.Constraint().String())
-			names = append(names, tp.Obj().Name())
-		}
-		typeParamsDecl = "[" + strings.Join(params, ", ") + "]"
-		typeParamsUse = "[" + strings.Join(names, ", ") + "]"
-	}
-
-	data := MockBaseData{
-		InterfaceName:     interfaceDesc.Name,
-		ConstructorPrefix: constructorPrefix,
-		TypeParamsDecl:    typeParamsDecl,
-		TypeParamsUse:     typeParamsUse,
-	}
-	return s.template.ExecuteTemplate(writer, "mockBase", data)
 }
 
 func quickGoImports(descPkg PackageDesc) []string {

@@ -21,7 +21,7 @@ func createTestSyrup(t *testing.T, templateContent string) *Syrup {
 	// Create parameter types
 	contextType := types.NewNamed(
 		types.NewTypeName(0, types.NewPackage("context", "context"), "Context", nil),
-		types.NewInterface(nil, nil), nil,
+		types.NewInterfaceType(nil, nil), nil,
 	)
 	stringType := types.Typ[types.String]
 	boolType := types.Typ[types.Bool]
@@ -47,7 +47,7 @@ func createTestSyrup(t *testing.T, templateContent string) *Syrup {
 	)
 
 	// Create signature
-	signature := types.NewSignature(nil, params, results, false)
+	signature := types.NewSignatureType(nil, nil, nil, params, results, false)
 
 	// Create method
 	method := types.NewFunc(0, nil, "GetUser", signature)
@@ -68,10 +68,8 @@ func createTestSyrup(t *testing.T, templateContent string) *Syrup {
 	require.NoError(t, err)
 
 	// Create Syrup instance
-	syrup, err := New("myapp", "UserRepository", method, signature, nil, tmpl)
-	require.NoError(t, err)
 
-	return syrup
+	return New("myapp", "UserRepository", method, signature, nil, tmpl)
 }
 
 // createSimpleTestMethods creates a slice of test methods for Call() testing.
@@ -81,7 +79,7 @@ func createSimpleTestMethods() []*types.Func {
 	intType := types.Typ[types.Int]
 
 	// func FindByName(name string) *User
-	findByNameSig := types.NewSignature(nil,
+	findByNameSig := types.NewSignatureType(nil, nil, nil,
 		types.NewTuple(types.NewParam(0, nil, "name", stringType)),
 		types.NewTuple(types.NewParam(0, nil, "", types.NewPointer(types.Typ[types.String]))),
 		false,
@@ -89,7 +87,7 @@ func createSimpleTestMethods() []*types.Func {
 	findByName := types.NewFunc(0, nil, "FindByName", findByNameSig)
 
 	// func CountUsers() int
-	countSig := types.NewSignature(nil,
+	countSig := types.NewSignatureType(nil, nil, nil,
 		types.NewTuple(),
 		types.NewTuple(types.NewParam(0, nil, "", intType)),
 		false,
@@ -314,7 +312,7 @@ func TestSyrup_TemplateErrorHandling(t *testing.T) {
 			// Create a dummy method and signature for error testing
 			stringType := types.Typ[types.String]
 			params := types.NewTuple(types.NewParam(0, nil, "test", stringType))
-			signature := types.NewSignature(nil, params, nil, false)
+			signature := types.NewSignatureType(nil, nil, nil, params, nil, false)
 			method := types.NewFunc(0, nil, "TestMethod", signature)
 
 			// Try to create Syrup - might fail for syntax errors
@@ -330,12 +328,7 @@ func TestSyrup_TemplateErrorHandling(t *testing.T) {
 				return
 			}
 
-			syrup, err := New("testpkg", "TestInterface", method, signature, nil, tmpl)
-			if err != nil {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tt.errorContains)
-				return
-			}
+			syrup := New("testpkg", "TestInterface", method, signature, nil, tmpl)
 
 			// Test Call method if requested
 			if tt.testCall {
@@ -343,7 +336,7 @@ func TestSyrup_TemplateErrorHandling(t *testing.T) {
 				err = syrup.Call(&buffer, createSimpleTestMethods())
 				if tt.expectError {
 					require.Error(t, err)
-					assert.ErrorContains(t, err, tt.errorContains)
+					require.ErrorContains(t, err, tt.errorContains)
 				} else {
 					require.NoError(t, err)
 				}
@@ -355,7 +348,7 @@ func TestSyrup_TemplateErrorHandling(t *testing.T) {
 				err = syrup.MockMethod(&buffer)
 				if tt.expectError {
 					require.Error(t, err)
-					assert.ErrorContains(t, err, tt.errorContains)
+					require.ErrorContains(t, err, tt.errorContains)
 				} else {
 					assert.NoError(t, err)
 				}

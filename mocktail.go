@@ -284,7 +284,7 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 		// Create a Syrup instance with the first method to parse the template once
 		if len(pkgDesc.Interfaces) > 0 && len(pkgDesc.Interfaces[0].Methods) > 0 {
 			firstMethod := pkgDesc.Interfaces[0].Methods[0]
-			templateSyrup, err := New(
+			templateSyrup := New(
 				pkgDesc.Pkg.Path(),
 				pkgDesc.Interfaces[0].Name,
 				firstMethod,
@@ -292,11 +292,8 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 				pkgDesc.Interfaces[0].TypeParams,
 				tmpl,
 			)
-			if err != nil {
-				return err
-			}
 
-			err = templateSyrup.WriteImports(buffer, pkgDesc)
+			err := templateSyrup.WriteImports(buffer, pkgDesc)
 			if err != nil {
 				return err
 			}
@@ -306,7 +303,7 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 			// Write mock base using the template Syrup (or create one if we don't have one)
 			// Create a Syrup for this interface
 			firstMethod := interfaceDesc.Methods[0]
-			baseSyrup, err := New(
+			baseSyrup := New(
 				pkgDesc.Pkg.Path(),
 				interfaceDesc.Name,
 				firstMethod,
@@ -314,11 +311,8 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 				interfaceDesc.TypeParams,
 				tmpl,
 			)
-			if err != nil {
-				return err
-			}
 
-			err = baseSyrup.WriteMockBase(buffer, interfaceDesc, exported)
+			err := baseSyrup.WriteMockBase(buffer, interfaceDesc, exported)
 			if err != nil {
 				return err
 			}
@@ -326,7 +320,7 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 			_, _ = buffer.WriteString("\n")
 
 			for _, method := range interfaceDesc.Methods {
-				syrup, err := New(
+				syrup := New(
 					pkgDesc.Pkg.Path(),
 					interfaceDesc.Name,
 					method,
@@ -334,9 +328,6 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 					interfaceDesc.TypeParams,
 					tmpl,
 				)
-				if err != nil {
-					return err
-				}
 
 				err = syrup.MockMethod(buffer)
 				if err != nil {

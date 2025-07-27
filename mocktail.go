@@ -282,27 +282,21 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 		buffer := bytes.NewBufferString("")
 
 		// Create a Syrup instance with the first method to parse the template once
-		var templateSyrup *Syrup
 		if len(pkgDesc.Interfaces) > 0 && len(pkgDesc.Interfaces[0].Methods) > 0 {
 			firstMethod := pkgDesc.Interfaces[0].Methods[0]
-			signature := firstMethod.Type().(*types.Signature)
-			var err error
-			templateSyrup, err = New(
+			templateSyrup, err := New(
 				pkgDesc.Pkg.Path(),
 				pkgDesc.Interfaces[0].Name,
 				firstMethod,
-				signature,
+				firstMethod.Type().(*types.Signature),
 				pkgDesc.Interfaces[0].TypeParams,
 				tmpl,
 			)
 			if err != nil {
 				return err
 			}
-		}
 
-		// Write imports using the template Syrup
-		if templateSyrup != nil {
-			err := templateSyrup.WriteImports(buffer, pkgDesc)
+			err = templateSyrup.WriteImports(buffer, pkgDesc)
 			if err != nil {
 				return err
 			}
@@ -310,67 +304,41 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 
 		for _, interfaceDesc := range pkgDesc.Interfaces {
 			// Write mock base using the template Syrup (or create one if we don't have one)
-			var baseSyrup *Syrup
-			if templateSyrup != nil && templateSyrup.InterfaceName == interfaceDesc.Name {
-				baseSyrup = templateSyrup
-			} else if len(interfaceDesc.Methods) > 0 {
-				// Create a Syrup for this interface
-				firstMethod := interfaceDesc.Methods[0]
-				signature := firstMethod.Type().(*types.Signature)
-				var err error
-				baseSyrup, err = New(
+			// Create a Syrup for this interface
+			firstMethod := interfaceDesc.Methods[0]
+			baseSyrup, err := New(
+				pkgDesc.Pkg.Path(),
+				interfaceDesc.Name,
+				firstMethod,
+				firstMethod.Type().(*types.Signature),
+				interfaceDesc.TypeParams,
+				tmpl,
+			)
+			if err != nil {
+				return err
+			}
+
+			err = baseSyrup.WriteMockBase(buffer, interfaceDesc, exported)
+			if err != nil {
+				return err
+			}
+
+			_, _ = buffer.WriteString("\n")
+
+			for _, method := range interfaceDesc.Methods {
+				syrup, err := New(
 					pkgDesc.Pkg.Path(),
 					interfaceDesc.Name,
-					firstMethod,
-					signature,
+					method,
+					method.Type().(*types.Signature),
 					interfaceDesc.TypeParams,
 					tmpl,
 				)
 				if err != nil {
 					return err
 				}
-			}
 
-			if baseSyrup != nil {
-				err := baseSyrup.WriteMockBase(buffer, interfaceDesc, exported)
-				if err != nil {
-					return err
-				}
-			}
-
-			_, _ = buffer.WriteString("\n")
-
-			for _, method := range interfaceDesc.Methods {
-				signature := method.Type().(*types.Signature)
-
-				var syrup *Syrup
-				if baseSyrup != nil {
-					// Create a method-specific Syrup instance (reusing the parsed template)
-					syrup = &Syrup{
-						PkgPath:       pkgDesc.Pkg.Path(),
-						InterfaceName: interfaceDesc.Name,
-						Method:        method,
-						Signature:     signature,
-						TypeParams:    interfaceDesc.TypeParams,
-						template:      baseSyrup.template, // Reuse the already parsed template
-					}
-				} else {
-					// Fallback: create a new Syrup (shouldn't happen in normal cases)
-					var err error
-					syrup, err = New(
-						pkgDesc.Pkg.Path(),
-						interfaceDesc.Name,
-						method,
-						signature,
-						interfaceDesc.TypeParams,
-						tmpl,
-					)
-					if err != nil {
-						return err
-					}
-				}
-
-				err := syrup.MockMethod(buffer)
+				err = syrup.MockMethod(buffer)
 				if err != nil {
 					return err
 				}

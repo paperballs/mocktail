@@ -97,26 +97,7 @@ type Syrup struct {
 	Method        *types.Func
 	Signature     *types.Signature
 	TypeParams    *types.TypeParamList
-	template      *template.Template
-}
-
-// New creates a new Syrup instance with the specified template file.
-func New(
-	pkgPath string,
-	interfaceName string,
-	method *types.Func,
-	signature *types.Signature,
-	typeParams *types.TypeParamList,
-	tmpl *template.Template,
-) *Syrup {
-	return &Syrup{
-		PkgPath:       pkgPath,
-		InterfaceName: interfaceName,
-		Method:        method,
-		Signature:     signature,
-		TypeParams:    typeParams,
-		template:      tmpl,
-	}
+	Template      *template.Template
 }
 
 // Call generates mock.Call wrapper.
@@ -215,7 +196,7 @@ func (s Syrup) Call(writer io.Writer, methods []*types.Func) error {
 		HasReturns:          hasReturns,
 	}
 
-	return s.template.ExecuteTemplate(writer, "combinedCall", data)
+	return s.Template.ExecuteTemplate(writer, "combinedCall", data)
 }
 
 // MockMethod generates method mocks.
@@ -278,7 +259,7 @@ func (s Syrup) MockMethod(writer io.Writer) error {
 		IsVariadic:  s.Signature.Variadic(),
 	}
 
-	return s.template.ExecuteTemplate(writer, "combinedMockMethod", data)
+	return s.Template.ExecuteTemplate(writer, "combinedMockMethod", data)
 }
 
 // WriteImports generates package imports using the Syrup's template.
@@ -287,7 +268,7 @@ func (s Syrup) WriteImports(writer io.Writer, descPkg PackageDesc) error {
 		Name:    descPkg.Pkg.Name(),
 		Imports: quickGoImports(descPkg),
 	}
-	return s.template.ExecuteTemplate(writer, "imports", data)
+	return s.Template.ExecuteTemplate(writer, "imports", data)
 }
 
 // WriteMockBase generates mock base struct and constructor using the Syrup's template.
@@ -318,7 +299,7 @@ func (s Syrup) WriteMockBase(writer io.Writer, interfaceDesc InterfaceDesc, expo
 		TypeParamsDecl:    typeParamsDecl,
 		TypeParamsUse:     typeParamsUse,
 	}
-	return s.template.ExecuteTemplate(writer, "mockBase", data)
+	return s.Template.ExecuteTemplate(writer, "mockBase", data)
 }
 
 // getTypeParamsUse returns type parameters for usage in method receivers.

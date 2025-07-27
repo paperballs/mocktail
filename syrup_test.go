@@ -69,7 +69,14 @@ func createTestSyrup(t *testing.T, templateContent string) *Syrup {
 
 	// Create Syrup instance
 
-	return New("myapp", "UserRepository", method, signature, nil, tmpl)
+	return &Syrup{
+		PkgPath:       "myapp",
+		InterfaceName: "UserRepository",
+		Method:        method,
+		Signature:     signature,
+		TypeParams:    nil, // No type parameters for this test
+		Template:      tmpl,
+	}
 }
 
 // createSimpleTestMethods creates a slice of test methods for Call() testing.
@@ -328,7 +335,14 @@ func TestSyrup_TemplateErrorHandling(t *testing.T) {
 				return
 			}
 
-			syrup := New("testpkg", "TestInterface", method, signature, nil, tmpl)
+			syrup := &Syrup{
+				PkgPath:       "testpkg",
+				InterfaceName: "TestInterface",
+				Method:        method,
+				Signature:     signature,
+				TypeParams:    nil, // No type parameters for this test
+				Template:      tmpl,
+			}
 
 			// Test Call method if requested
 			if tt.testCall {

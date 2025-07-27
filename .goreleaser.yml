@@ -43,5 +43,3 @@ archives:
         formats: [ 'zip' ]
     files:
       - LICENSE
-
-

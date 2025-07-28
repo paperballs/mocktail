@@ -175,9 +175,7 @@ func walk(root, moduleName string) (map[string]PackageDesc, error) {
 				return fmt.Errorf("type %q in %q is not an interface", lookup.Type(), fp)
 			}
 
-			for i := range interfaceType.NumMethods() {
-				method := interfaceType.Method(i)
-
+			for method := range interfaceType.Methods() {
 				interfaceDesc.Methods = append(interfaceDesc.Methods, method)
 
 				for _, imp := range getMethodImports(method, packageDesc.Pkg.Path()) {
@@ -202,7 +200,7 @@ func walk(root, moduleName string) (map[string]PackageDesc, error) {
 }
 
 func getMethodImports(method *types.Func, importPath string) []string {
-	signature := method.Type().(*types.Signature)
+	signature := method.Signature()
 
 	var imports []string
 
@@ -219,8 +217,8 @@ func getTupleImports(tuples ...*types.Tuple) []string {
 	var imports []string
 
 	for _, tuple := range tuples {
-		for i := range tuple.Len() {
-			imports = append(imports, getTypeImports(tuple.At(i).Type())...)
+		for v := range tuple.Variables() {
+			imports = append(imports, getTypeImports(v.Type())...)
 		}
 	}
 
@@ -240,8 +238,8 @@ func getTypeImports(t types.Type) []string {
 
 	case *types.Struct:
 		var imports []string
-		for i := range v.NumFields() {
-			imports = append(imports, getTypeImports(v.Field(i).Type())...)
+		for f := range v.Fields() {
+			imports = append(imports, getTypeImports(f.Type())...)
 		}
 		return imports
 
@@ -288,7 +286,7 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 				PkgPath:       pkgDesc.Pkg.Path(),
 				InterfaceName: pkgDesc.Interfaces[0].Name,
 				Method:        firstMethod,
-				Signature:     firstMethod.Type().(*types.Signature),
+				Signature:     firstMethod.Signature(),
 				TypeParams:    pkgDesc.Interfaces[0].TypeParams,
 				Template:      tmpl,
 			}
@@ -307,7 +305,7 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 				PkgPath:       pkgDesc.Pkg.Path(),
 				InterfaceName: pkgDesc.Interfaces[0].Name,
 				Method:        firstMethod,
-				Signature:     firstMethod.Type().(*types.Signature),
+				Signature:     firstMethod.Signature(),
 				TypeParams:    pkgDesc.Interfaces[0].TypeParams,
 				Template:      tmpl,
 			}
@@ -324,7 +322,7 @@ func generate(model map[string]PackageDesc, exported bool, tmpl *template.Templa
 					PkgPath:       pkgDesc.Pkg.Path(),
 					InterfaceName: interfaceDesc.Name,
 					Method:        method,
-					Signature:     method.Type().(*types.Signature),
+					Signature:     method.Signature(),
 					TypeParams:    interfaceDesc.TypeParams,
 					Template:      tmpl,
 				}

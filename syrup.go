@@ -368,9 +368,7 @@ func (s Syrup) getTypeName(t types.Type, last bool) string {
 
 func (s Syrup) getTupleTypes(t *types.Tuple) []string {
 	var tupleTypes []string
-	for i := range t.Len() {
-		param := t.At(i)
-
+	for param := range t.Variables() {
 		tupleTypes = append(tupleTypes, s.getTypeName(param.Type(), false))
 	}
 

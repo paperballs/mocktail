@@ -12,7 +12,7 @@ Naive code generator that creates mock implementation using `testify.mock`.
 
 Unlike [mockery](https://github.com/vektra/mockery), Mocktail generates typed methods on mocks.
 
-For an explanation of why we created Mocktail, you can read [this article](https://traefik.io/blog/mocktail-the-mock-generator-for-strongly-typed-mocks/).
+For an explanation of why we created Mocktail, you can read [this article](https://ldez.github.io/blog/2023/01/10/take-a-mocktail/).
 
 ## How to use
 
@@ -33,7 +33,7 @@ package example
 You can install Mocktail by running the following command:
 
 ```bash
-go install github.com/traefik/mocktail@latest
+go install github.com/paperballs/mocktail@latest
 ```
 
 ### Pre-build Binaries

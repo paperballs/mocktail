@@ -15,3 +15,5 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+retract v1.0.1 // the version contains a feature, replaced with v1.1.0

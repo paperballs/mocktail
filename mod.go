@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"golang.org/x/mod/modfile"
 )
 
 type modInfo struct {
@@ -18,26 +22,40 @@ type modInfo struct {
 }
 
 func getModuleInfo(ctx context.Context, dir string) (modInfo, error) {
-	// https://github.com/golang/go/issues/44753#issuecomment-790089020
-	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-json")
+	cmd := exec.CommandContext(ctx, "go", "env", "-json", "GOMOD")
 	if dir != "" {
 		cmd.Dir = dir
 	}
 
-	raw, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 	if err != nil {
-		return modInfo{}, fmt.Errorf("command go list: %w: %s", err, string(raw))
+		return modInfo{}, fmt.Errorf("command %q: %w: %s", strings.Join(cmd.Args, " "), err, string(out))
 	}
 
-	var v modInfo
-	err = json.NewDecoder(bytes.NewBuffer(raw)).Decode(&v)
+	v := map[string]string{}
+
+	err = json.NewDecoder(bytes.NewBuffer(out)).Decode(&v)
 	if err != nil {
-		return modInfo{}, fmt.Errorf("unmarshaling error: %w: %s", err, string(raw))
+		return modInfo{}, err
 	}
 
-	if v.GoMod == "" {
-		return modInfo{}, errors.New("working directory is not part of a module")
+	goModPath := v["GOMOD"]
+
+	data, err := os.ReadFile(goModPath)
+	if err != nil {
+		return modInfo{}, err
 	}
 
-	return v, nil
+	goModFile, err := modfile.Parse(goModPath, data, nil)
+	if err != nil {
+		return modInfo{}, err
+	}
+
+	return modInfo{
+		Path:      goModFile.Module.Mod.Path,
+		Dir:       filepath.Dir(goModPath),
+		GoMod:     goModPath,
+		GoVersion: goModFile.Go.Version,
+		Main:      true,
+	}, nil
 }

@@ -9,7 +9,7 @@ clean:
 	rm -rf cover.out
 
 test: clean
-	go test -v -cover ./...
+	CGO_ENABLED=1 go test -v -race -cover ./...
 
 build: clean
 	CGO_ENABLED=0 go build -trimpath -ldflags '-w -s'
